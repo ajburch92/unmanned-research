@@ -1,0 +1,25 @@
+<launch>  
+  <include file="$(find mavros)/launch/px4.launch"/>
+  
+  <include file="$(find pointgrey_camera_driver)/launch/camera.launch"/>
+
+  <include file="$(find velodyne_pointcloud)/launch/VLP16_points.launch"/>
+  
+  <node name="image_proc" 
+	      pkg="image_proc" 
+	      type="image_proc" 
+	      ns="camera">
+  </node>
+
+  <node pkg="virtual_infrastructure_pkg"
+        type="ground_station_rgb_node"
+        name="ground_station_rgb_node">
+  </node>
+
+  <node pkg="virtual_infrastructure_pkg"
+        type="ground_station_therm_node"
+        name="ground_station_therm_node">
+  </node>
+
+</launch>
+

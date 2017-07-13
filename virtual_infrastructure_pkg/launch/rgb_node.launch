@@ -1,0 +1,23 @@
+<launch>  
+  <node name="camera" pkg="usb_cam" type="usb_cam_node" output="screen" >
+    <param name="video_device" value="/dev/video0" />
+    <param name="image_width" value="352" />
+    <param name="image_height" value="288" />
+    <param name="pixel_format" value="yuyv" />
+    <param name="camera_frame_id" value="usb_cam" />
+    <param name="io_method" value="mmap"/>
+  </node>
+
+  <node name="image_proc" 
+        pkg="image_proc" 
+        type="image_proc" 
+        ns="camera">
+  </node>
+
+  <node pkg="virtual_infrastructure_pkg"
+        type="ground_station_rgb_node"
+        name="ground_station_rgb_node">
+  </node>
+
+</launch>
+
