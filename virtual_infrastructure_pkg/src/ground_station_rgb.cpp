@@ -28,8 +28,6 @@
 
 using namespace std;
 
-static const string RGB_WINDOW = "rgb camera feed";
-
 // INITIALIZATION ////////////////////////////////////////////////////////////////////
 int counter = 0;
 
