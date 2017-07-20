@@ -23,6 +23,7 @@
 #include <vector>
 #include <deque>
 #include <math.h>
+#include <stdio.h>
 //object class
 #include "Object.h"
 
@@ -52,7 +53,7 @@ int const max_blur = 40;
 int const max_sigma = 10;
 
 //max number of objects to be detected in frame
-const int MAX_NUM_OBJECTS=30;
+const int MAX_NUM_OBJECTS=10;
 //minimum and maximum object area
 const int MIN_OBJECT_AREA = 20*20;
 
@@ -61,22 +62,23 @@ const string windowName = "Raw Feed";
 const string windowName2 = "Threshold Feed";
 const string windowName3 = "Output Feed";
 const string windowName4 = "Undistorted Feed";
-const char* trackbar_window_name = "Parameter Palate" ;
+const string trackbar_window_name = "Parameter Palate" ;
+Mat dialog_box;
 
 //pallate controls
-int lowThreshold = 30;
-int dilateSize = 10;
+int lowThreshold = 50;
+int dilateSize = 30;
 int erodeSize = 15;
 int const max_lowThreshold = 255;
-int const max_dilate = 50;
-int const max_erode = 50;
+int const max_dilate = 100;
+int const max_erode = 100;
 int ratio = 3;
 int kernel_size = 3;
 
 //Distortion parameters
 int distortionAngle = 0;
 int const max_distortion = 180;
-int birdseyeHeight = 5;
+int birdseyeHeight = 10;
 int const max_birdseye = 100;
 
 //checkerboard ... or chess, board parameters
@@ -121,8 +123,8 @@ void drawObject(vector<Object> theObjects,Mat &frame){ // draw on frame
 
     //draw past positions if tracking
     if (tracking_status == TRUE) {
-      for (int j = 1; j<(n-1); j++) { 
-        line(frame,Point(theObjects.at(i).getXPos(MEMORY_SIZE-j),theObjects.at(i).getYPos(MEMORY_SIZE - j)),Point(theObjects.at(i).getXPos(MEMORY_SIZE-(j+1)),theObjects.at(i).getYPos(MEMORY_SIZE - (j+1))),Scalar(0,255,255));
+      for (int j = 2; j<(n-3); j++) { 
+        line(frame,Point(theObjects.at(i).getXPos(MEMORY_SIZE-j),theObjects.at(i).getYPos(MEMORY_SIZE - j)),Point(theObjects.at(i).getXPos(MEMORY_SIZE-(j-1)),theObjects.at(i).getYPos(MEMORY_SIZE - (j-1))),Scalar(0,255,255));
       }
       }
   }
@@ -204,7 +206,8 @@ void trackObjects(Mat threshold, Mat &cameraFeed) { //object tracking
   
   bool objectFound = false;
   // init
-  float x_temp, y_temp, x_obj, y_obj, dist_temp;
+  int x_temp, y_temp;
+  float x_obj, y_obj, dist_temp;
   int minPos = 0;
   int max_dist = 200; //pixels
   vector<float> dist;
@@ -223,14 +226,18 @@ void trackObjects(Mat threshold, Mat &cameraFeed) { //object tracking
         {
           Object object_temp; // generate new temporary object
 
-          x_temp = (float)object_temp.getXPos(moment.m10/area);
-          y_temp = (float)object_temp.getYPos(moment.m01/area);
+          x_temp = (int)moment.m10/area;       
+          object_temp.setXPos(x_temp);
+          //std::string ss = "x_temp = " + std::to_string(x_temp);
+          //putText(dialog_box, ss, Point(0,50),1,2,Scalar(255),2);
 
+          y_temp = (int)moment.m01/area; 
+          object_temp.setYPos(y_temp);
           // compare distances to existing objects
           for (int i = 0; i<objects.size();i++) {
             x_obj = (float)objects.at(i).getXPos(MEMORY_SIZE-1);
             y_obj = (float)objects.at(i).getYPos(MEMORY_SIZE-1);
-            dist_temp = sqrt(pow((x_obj - x_temp),2.0) + pow((y_obj - y_temp),2.0));
+            dist_temp = sqrt(pow((x_obj - (float)x_temp),2.0) + pow((y_obj - (float)y_temp),2.0));
             dist.push_back(dist_temp);
           }
 
@@ -251,7 +258,7 @@ void trackObjects(Mat threshold, Mat &cameraFeed) { //object tracking
           }
 
           else { // object too far away - new object
-             objects.push_back(object_temp);
+             //objects.push_back(object_temp); // only track desired number of objects for right now, match to nearest object, ignore rest.
           }
           
           objectFound = true;
@@ -259,18 +266,14 @@ void trackObjects(Mat threshold, Mat &cameraFeed) { //object tracking
         }
         else objectFound = false;
       }
-      //let user know you found an object
-      if(objectFound ==true)
-      {
-        //draw object location on screen
-        drawObject(objects,cameraFeed);
-        //clear objects_curr
-      }
     }
-    else {
-      putText(cameraFeed,"CANT FIND OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
-    }
+  } else
+  {
+    putText(cameraFeed,"CANT FIND OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
   }
+  //draw object location on screen
+  drawObject(objects,cameraFeed);
+  //clear objects_curr
 }
 
 // RGB Image Converter Class ////////////////////////////
@@ -321,6 +324,9 @@ public:
     header.seq = counter; // user defined counter
     header.stamp = ros::Time::now(); // time
     cameraFeed = rgb_cv_ptr -> image;
+    
+    dialog_box = Mat::zeros(100,400,CV_8UC3);
+
     //cameraFeed.copyTo(threshold);
 
     if (patternfound < 1) 
@@ -330,7 +336,7 @@ public:
       imshow(windowName,cameraFeed);
       waitKey(30);
     } 
-    else {
+    else { // pattern
       if (counter < 1) 
       {
         cvtColor(cameraFeed, grayFeed, COLOR_BGR2GRAY);
@@ -351,7 +357,9 @@ public:
         imgPts[3]=corners[(board_h-1)*board_w+board_w-1];
 
         Homogeneous = getPerspectiveTransform(objPts, imgPts);
+
       }
+
       Homogeneous.at<double>(2,2) = birdseyeHeight;
       warpPerspective(cameraFeed, birdseyeFeed, Homogeneous, cameraFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 
@@ -365,7 +373,6 @@ public:
 
       // Background subtraction
       pMOG->operator()(cameraFeed,fgMaskMOG);
-      //pMOG2->operator()(cameraFeed,fgMaskMOG2);
 
       //Gaussian Blur
       GaussianBlur(fgMaskMOG,fgMaskMOG,Size(blurSize,blurSize),sigmaSize,sigmaSize);
@@ -400,7 +407,9 @@ public:
       }
 
       // Create processing palate
-      namedWindow( trackbar_window_name, CV_WINDOW_AUTOSIZE );
+      //putText(dialog_box, "text test", Point(0,50),1,2,Scalar(255),2);
+      imshow(trackbar_window_name,dialog_box); 
+
       createTrackbar( "Min Threshold:", trackbar_window_name, &lowThreshold, max_lowThreshold);
       createTrackbar( "Erode Size:", trackbar_window_name, &erodeSize, max_erode+1);
       createTrackbar( "Dilate Size:", trackbar_window_name, &dilateSize, max_dilate+1);
@@ -417,7 +426,7 @@ public:
 
       char k = (char) cv::waitKey(30); //wait for esc key
       //if(k == 27) break;
-      if(k== ' ')
+      if(k== ' ') 
       {
         if (tracking_status == TRUE)
         {
@@ -431,6 +440,10 @@ public:
           hierarchy = hierarchy_curr;
           objects = objects_curr ;
         }
+      } 
+      else if (k==27)
+      {
+  		pMOG = new BackgroundSubtractorMOG();
       }
 
       // Output modified video stream
