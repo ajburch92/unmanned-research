@@ -11,8 +11,9 @@
 #include <cv.h>
 #include <highgui.h>
 #include <deque>
+#include <ros/ros.h>
 
-#define FPS 30
+#define FPS 20
 #define MEMORY_SIZE 1024
 
 using namespace std;
@@ -21,7 +22,7 @@ using namespace cv;
 class Object
 {
 public:
-	Object();
+	Object(string name);
 	~Object(void);
 
 	int getXPos(int i);
@@ -30,8 +31,25 @@ public:
 	int getYPos(int i);
 	void setYPos(int y);
 
-	float getXVel();
-	float getYVel();
+	float getXVel(int i);
+	float getYVel(int i);
+
+	Scalar getHSVmin();
+	Scalar getHSVmax();
+
+	void setHSVmin(Scalar min);
+	void setHSVmax(Scalar max);
+	
+	string getType(){return type;}
+	void setType(string t){type = t;}
+
+	Scalar getColor(){
+		return Color;
+	}
+	void setColor(Scalar c){
+
+		Color = c;
+	}	
 
 private:
 
@@ -45,6 +63,10 @@ private:
 	float xVel_curr, yVel_curr;
 	float xVel_prev, yVel_prev;
 	float error;
+
+	string type;
+	Scalar HSVmin, HSVmax;
+	Scalar Color;
 
 	float velXFilter();
 	float velYFilter();
