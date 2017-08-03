@@ -4,7 +4,7 @@
 
 class PtCloudProcessor {
      public:
-        My_Filter();
+        PtCloudProcessor();
         void cloudCallback(const sensor_msgs::LaserScan::ConstPtr& scan);
      private:
         ros::NodeHandle node_;
@@ -16,7 +16,7 @@ class PtCloudProcessor {
 };
 
 PtCloudProcessor::PtCloudProcessor(){
-        scan_sub_ = node_.subscribe<sensor_msgs::LaserScan> ("/scan", 100, &My_Filter::scanCallback, this);
+        scan_sub_ = node_.subscribe<sensor_msgs::LaserScan> ("/scan", 100, &PtCloudProcessor::scanCallback, this);
         point_cloud_publisher_ = node_.advertise<sensor_msgs::PointCloud2> ("/cloud", 100, false);
         tfListener_.setExtrapolationLimit(ros::Duration(0.1));
 }
@@ -29,9 +29,9 @@ void PtCloudProcessor::cloudCallback(const sensor_msgs::LaserScan::ConstPtr& sca
 
 int main(int argc, char** argv)
 {
-    ros::init(argc, argv, "my_filter");
+    ros::init(argc, argv, "point cloud processor");
 
-    My_Filter filter;
+    PtCloudProcessor pcp;
 
     ros::spin();
 
