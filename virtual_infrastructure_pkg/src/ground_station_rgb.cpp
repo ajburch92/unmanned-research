@@ -10,6 +10,8 @@
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
+#include <virtual_infrastructure_pkg/visual_pose.h>
+#include <virtual_infrastructure_pkg/goal_pose.h>
 // opencv
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -30,6 +32,10 @@
 using namespace std;
 
 // INITIALIZATION ////////////////////////////////////////////////////////////////////
+ros::NodeHandle nh_rgb;
+ros::Publisher rgb_vehicle_pub;
+ros::Publisher rgb_goal_pub;
+
 int counter = 0;
 
 // generate Mats
@@ -319,29 +325,20 @@ void trackObjects(Mat threshold, Mat &frame,vector<Object> objects, string name)
 	int minPos = 0;
   	float max_dist = 100; //pixels
   	vector<float> dist;
+  	double x,y,th;
 
   if (hierarchy.size() > 0) {
   	num_objects = hierarchy.size();
-    //if number of objects greater than MAX_NUM_OBJECTS, then image theshold is too noisy
-  	//if(num_objects<MAX_NUM_OBJECTS)
-  	//{
-      for (int index = 0; index >= 0; index = hierarchy[index][0])
+
+      for (int index = 0; index < contours.size(); index++)
       {
           Moments moment = moments((cv::Mat)contours[index]); //moments method
           double area = moment.m00;
 
-          //if(area>MIN_OBJECT_AREA) //classify as object
-          //{
-          //Object object_temp(name); // generate new temporary object
-
           x_temp = (int)moment.m10/area;       
-          //object_temp.setXPos(x_temp);
-          //std::string ss = "x_temp = " + std::to_string(x_temp);
-          //putText(dialog_box, ss, Point(0,50),1,2,Scalar(255),2);
 
           y_temp = (int)moment.m01/area; 
-          //object_temp.setYPos(y_temp);
-          // compare distances to existing objects
+
           for (int i = 0; i<objects.size();i++) {
           	x_obj = (float)objects.at(i).getXPos(MEMORY_SIZE-1);
           	y_obj = (float)objects.at(i).getYPos(MEMORY_SIZE-1);
@@ -363,8 +360,11 @@ void trackObjects(Mat threshold, Mat &frame,vector<Object> objects, string name)
           	{
                	ROS_INFO("x_temp%i=%i" , minPos , x_temp);
 
-          		objects.at(minPos).setXPos(x_temp);
-          		objects.at(minPos).setYPos(y_temp);
+               	x_obj = x_temp;
+               	y_obj = y_temp;
+
+          		objects.at(minPos).setXPos(x_obj);
+          		objects.at(minPos).setYPos(y_obj);
           	} else { // object too far away - project current position
           		int i=0;
           		x_obj = objects.at(i).getXPos(MEMORY_SIZE-1); // retrieve past object position.
@@ -372,8 +372,8 @@ void trackObjects(Mat threshold, Mat &frame,vector<Object> objects, string name)
 		  		xdot_obj = objects.at(i).getXVel(MEMORY_SIZE-1); // retrieve past objects velocities
 	 	  		ydot_obj = objects.at(i).getYVel(MEMORY_SIZE-1);
 
-	 	  		x_obj = (int)((float)x_obj + xdot_obj * (float)FPS);
-	 	  		y_obj = (int)((float)y_obj + ydot_obj * (float)FPS);
+	 	  		x_obj = (int)(x_obj + xdot_obj * FPS);
+	 	  		y_obj = (int)(y_obj + ydot_obj * FPS);
 
 		  		objects.at(i).setXPos(x_obj);
 		  		objects.at(i).setYPos(y_obj);
@@ -384,14 +384,8 @@ void trackObjects(Mat threshold, Mat &frame,vector<Object> objects, string name)
  
           objectFound = true;
 
-        //}
-        //else {
-      	//  objectFound = false;
-        //}
       }
-//} else {
-	//putText(frame,"NOISY",Point(0,50),1,2,Scalar(0,0,255),2); 
-//}
+
 	} else
 	{
 	  num_objects = 0;
@@ -414,6 +408,31 @@ void trackObjects(Mat threshold, Mat &frame,vector<Object> objects, string name)
 	//putText(frame,"CANT FIND OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
 //}
   //draw object location on screen
+
+//if vehicle, publish x,y,th .... if goal, publish x,y
+x = (double)x_obj;
+y = (double)y_obj;
+th = atan2(y,x);
+
+virtual_infrastructure_pkg::visual_pose visual_pose_msg;
+virtual_infrastructure_pkg::goal_pose goal_pose_msg;
+
+if (name=="blue") { // vehicle
+	visual_pose_msg.x = x;
+	visual_pose_msg.y = y;
+	visual_pose_msg.th = th;
+	ROS_INFO("vehicle pose: ( %f , %f ) : th = %f ",x,y,th);
+	rgb_vehicle_pub.publish(visual_pose_msg); 
+}
+else if (name=="red") { // goal
+	goal_pose_msg.x = x;
+	goal_pose_msg.y = y;
+	ROS_INFO("goal pose: ( %f , %f ) ",x,y);
+	rgb_goal_pub.publish(goal_pose_msg); 
+}
+
+
+
 drawObject(objects,frame, contours,hierarchy);
 contours_prev = contours;
 hierarchy_prev = hierarchy;
@@ -424,8 +443,6 @@ hierarchy_prev = hierarchy;
 
 class RGBImageProcessor
 {
-
-	ros::NodeHandle nh_rgb;
 	image_transport::ImageTransport it_rgb;
 	image_transport::Subscriber rgb_sub_;
 	image_transport::Publisher rgb_pub_;
@@ -434,7 +451,7 @@ public:
 
 	Mat background;
 
-	RGBImageProcessor()
+	RGBImageProcessor(ros::NodeHandle nh_rgb )
 	: it_rgb(nh_rgb)
 	{
     // Subscribe to input video feed and publish output video feed
@@ -452,8 +469,8 @@ public:
 
 		cv_bridge::CvImage img_bridge;
 		sensor_msgs::Image img_msg;
-
 		cv_bridge::CvImagePtr rgb_cv_ptr;
+		
 		try
 		{
 			rgb_cv_ptr  = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::BGR8);
@@ -636,16 +653,18 @@ public:
 
 int main(int argc, char** argv)
 {
-
-  // init ROS //
-	ROS_INFO("ground_station_rgb_node launching");
 	ros::init(argc, argv, "ground_station_rgb_node");
+
+
+	rgb_vehicle_pub = nh_rgb.advertise<virtual_infrastructure_pkg::visual_pose>("vehicle_pose",2);
+	rgb_goal_pub = nh_rgb.advertise<virtual_infrastructure_pkg::goal_pose>("goal_pose",2);
+	ROS_INFO("ground_station_rgb_node launching");
 
   //create background subtractor object
 	pMOG = new BackgroundSubtractorMOG();
 
   //launch image convertor
-	RGBImageProcessor rip;
+	RGBImageProcessor rip(	ros::NodeHandle nh_rgb);
 
 	ros::spin();
 
