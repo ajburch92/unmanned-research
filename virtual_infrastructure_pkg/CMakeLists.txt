@@ -9,7 +9,6 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   image_transport
   message_generation
-  message_runtime
   roscpp
   rospy
   sensor_msgs
@@ -56,7 +55,7 @@ find_package(OpenCV REQUIRED)
 ## Generate messages in the 'msg' folder # Add messages for object position
 add_message_files(
   FILES
-  visual_pose.msg
+  vehicle_pose.msg
   goal_pose.msg
 )
 
@@ -114,7 +113,7 @@ generate_messages(
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES virtual_infrastructure_pkg
-  CATKIN_DEPENDS cv_bridge image_transport message_generation message_runtime roscpp rospy sensor_msgs std_msgs geometry_msgs
+  CATKIN_DEPENDS cv_bridge image_transport message_runtime roscpp rospy sensor_msgs std_msgs geometry_msgs
   DEPENDS system_lib
 )
 
@@ -132,7 +131,7 @@ include_directories( include
 
 ## Declare a library
 
-add_library( ${PROJECT_NAME} src/Object.cpp src/Odom.cpp)
+add_library( ${PROJECT_NAME} src/Object.cpp src/Odom.cpp src/Planner.cpp)
 
 target_link_libraries(${PROJECT_NAME}
   ${OpenCV_LIBRARIES}
@@ -200,16 +199,8 @@ install(DIRECTORY include/${PROJECT_NAME}/
 # add_executable(virtual_infrastructure_pkg_node src/virtual_infrastructure_pkg_node.cpp)
 add_executable(ground_station_rgb_node src/ground_station_rgb.cpp)
 add_executable(ground_station_therm_node src/ground_station_therm.cpp)
-add_executable(visual_odom src/Odom.cpp)
-
-## Add cmake target dependencies of the executable
-## same as for the library above
-# add_dependencies(virtual_infrastructure_pkg_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(ground_station_rgb_node src/ground_station_rgb.cpp)
-add_dependencies(ground_station_therm_node src/ground_station_therm.cpp)
-add_dependencies(visual_odom src/Odom.cpp)
-
-
+add_executable(vehicle_odom src/Odom.cpp)
+add_executable(vehicle_planner src/Planner.cpp)
 
 ## Specify libraries to link a library or executable target against
  target_link_libraries(ground_station_rgb_node 
@@ -224,9 +215,22 @@ add_dependencies(visual_odom src/Odom.cpp)
    ${PROJECT_NAME}
  )
 
- target_link_libraries( visual_odom
+ target_link_libraries( vehicle_odom
    ${OpenCV_LIBRARIES}
    ${catkin_LIBRARIES}
    ${PROJECT_NAME}
  )
 
+ target_link_libraries( vehicle_planner
+   ${OpenCV_LIBRARIES}
+   ${catkin_LIBRARIES}
+   ${PROJECT_NAME}
+ )
+
+## Add cmake target dependencies of the executable
+## same as for the library above
+# add_dependencies(virtual_infrastructure_pkg_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(ground_station_rgb_node src/ground_station_rgb.cpp)
+add_dependencies(ground_station_therm_node src/ground_station_therm.cpp)
+add_dependencies(vehicle_odom src/Odom.cpp)
+add_dependencies(vehicle_planner src/Planner.cpp)

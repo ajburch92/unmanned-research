@@ -10,7 +10,7 @@
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
-#include <virtual_infrastructure_pkg/visual_pose.h>
+#include <virtual_infrastructure_pkg/vehicle_posese.h>
 #include <virtual_infrastructure_pkg/goal_pose.h>
 // opencv
 #include <opencv2/opencv.hpp>
@@ -28,6 +28,10 @@
 #include <stdio.h>
 //object class
 #include "Object.h"
+//msg file headers
+#include <virtual_infrastructure_pkg/vehicle_pose.h>
+#include <virtual_infrastructure_pkg/goal_pose.h>
+
 
 using namespace std;
 
@@ -414,15 +418,15 @@ x = (double)x_obj;
 y = (double)y_obj;
 th = atan2(y,x);
 
-virtual_infrastructure_pkg::visual_pose visual_pose_msg;
+virtual_infrastructure_pkg::vehicle_posese vehicle_posese_msg;
 virtual_infrastructure_pkg::goal_pose goal_pose_msg;
 
 if (name=="blue") { // vehicle
-	visual_pose_msg.x = x;
-	visual_pose_msg.y = y;
-	visual_pose_msg.th = th;
+	vehicle_posese_msg.x = x;
+	vehicle_posese_msg.y = y;
+	vehicle_posese_msg.th = th;
 	ROS_INFO("vehicle pose: ( %f , %f ) : th = %f ",x,y,th);
-	rgb_vehicle_pub.publish(visual_pose_msg); 
+	rgb_vehicle_pub.publish(vehicle_posese_msg); 
 }
 else if (name=="red") { // goal
 	goal_pose_msg.x = x;
@@ -656,7 +660,7 @@ int main(int argc, char** argv)
 	ros::init(argc, argv, "ground_station_rgb_node");
 
 
-	rgb_vehicle_pub = nh_rgb.advertise<virtual_infrastructure_pkg::visual_pose>("vehicle_pose",2);
+	rgb_vehicle_pub = nh_rgb.advertise<virtual_infrastructure_pkg::vehicle_posese>("vehicle_pose",2);
 	rgb_goal_pub = nh_rgb.advertise<virtual_infrastructure_pkg::goal_pose>("goal_pose",2);
 	ROS_INFO("ground_station_rgb_node launching");
 

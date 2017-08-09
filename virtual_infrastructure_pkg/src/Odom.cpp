@@ -1,12 +1,15 @@
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
 #include <nav_msgs/Odometry.h>
-#include <virtual_infrastructure_pkg/visual_pose.h>
+#include <std_msgs/Float64.h>
+#include <virtual_infrastructure_pkg/vehicle_pose.h>
 
-class VisualOdometry {
+class vehicleOdometry {
 public:
-	VisualOdometry();
-	void PositionCallback(const virtual_infrastructure_pkg::visual_pose::ConstPtr& visual_pose);
+	
+
+	vehicleOdometry();
+	void PositionCallback(const virtual_infrastructure_pkg::vehicle_pose::ConstPtr& vehicle_pose);
 private:
 	double x = 0.0;
 	double y = 0.0;
@@ -27,21 +30,16 @@ private:
 
 };
 
-VisualOdometry::VisualOdometry() {
-	current_time = ros::Time::now();
-	last_time = ros::Time::now();
-	sub = nh_odom.subscribe("/visual_pose",15, &VisualOdometry::PositionCallback, this);
-	odom_pub = nh_odom.advertise<nav_msgs::Odometry>("/visual_odom", 15);
-}
 
-void VisualOdometry::PositionCallback (const virtual_infrastructure_pkg::visual_pose::ConstPtr& visual_pose) {
+
+void vehicleOdometry::PositionCallback (const virtual_infrastructure_pkg::vehicle_pose::ConstPtr& vehicle_pose) {
 		current_time = ros::Time::now();
 		dt = (current_time - last_time).toSec();
 
 		// read msg data
-		x = visual_pose->x;
-		y = visual_pose->y;
-		th = visual_pose->th;
+		x = vehicle_pose->x;
+		y = vehicle_pose->y;
+		th = vehicle_pose->th;
 
 		// calculate velocities
 		vx = (x-x_prev)/dt;
@@ -87,11 +85,18 @@ void VisualOdometry::PositionCallback (const virtual_infrastructure_pkg::visual_
 
 }
 
+vehicleOdometry::vehicleOdometry() {
+	current_time = ros::Time::now();
+	last_time = ros::Time::now();
+	sub = nh_odom.subscribe("/vehicle_pose",20, &vehicleOdometry::PositionCallback);
+	odom_pub = nh_odom.advertise<nav_msgs::Odometry>("/vehicle_odom", 20);
+}
+
 int main(int argc, char** argv){
 	
-	ros::init(argc, argv, "visual_odom");
+	ros::init(argc, argv, "vehicle_odom");
 
-	VisualOdometry vo;
+	vehicleOdometry vo;
 
 	ros::spin();
 
