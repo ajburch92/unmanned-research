@@ -1,66 +1,57 @@
 #include <ros/ros.h>
 #include "nav_msgs/Odometry.h"
 #include <std_msgs/Float64.h>
-#include <virtual_infrastructure_pkg/vehicle_pose.h>
-#include <virtual_infrastructure_pkg/goal_pose.h>
+//#include "vehicle_pose.h"
+//#include "goal_pose.h"
+#include <geometry_msgs/Pose2D.h>
 #include <stdio.h>
 #include <iostream>
 #include <math.h>
+#include <vector>
+#include <numeric>
+
+#define LOS_RADIUS 1
 
 using namespace std;
 
-class Planner {
-     public:
-        Planner();
-        ros::NodeHandle n;
-        void getLOSvector();
-        void vehicleCallback(const virtual_infrastructure_pkg::vehicle_pose::ConstPtr& vehicle_pose);
-        void goalCallback(const virtual_infrastructure_pkg::goal_pose::ConstPtr& goal_pose);
-        void targetSpeed(double xe, double ye, double xv, double yv, double& distance_to_target);
-        void targetAngle(double xe, double ye, double xv, double yv, double& angle_error);
-
-      private:
+ros::NodeHandle n;
 
 
+ros::Publisher target_angle_pub;
+ros::Publisher target_speed_pub;
+ros::Subscriber sub_vehicle;
+ros::Subscriber sub_goal;
+double radius;
+vector <double> p_i;
+vector <double> p_e;
+vector <double> p_v;
+vector <double> p_ie;
+vector <double> p_iv;
+vector <double> p_ev;
+double e_CTE;
+double Mag_num;
+double Mag_den;
+vector <double> p_ia;
+vector <double> p_b;
+vector <double> p_eb;
+vector <double> p_ae;
 
-        ros::Publisher target_angle_pub;
-        ros::Publisher target_speed_pub;
-        ros::Subscriber sub_vehicle;
-        ros::Subscriber sub_goal;
-        double x_vehicle, y_vehicle, x_goal, y_goal, target_angle, target_speed;
+bool pi_bool;
 
-        double radius;
-        vector <double> p_i;
-        vector <double> p_e;
-        vector <double> p_v;
-        vector <double> p_ie;
-        vector <double> p_iv;
-        vector <double> p_ev;
-        double e_CTE;
-        double Mag_num;
-        double Mag_den;
-        vector <double> p_ia;
-        vector <double> p_b;
-        vector <double> p_eb;
-        vector <double> p_ae;
-        
-        bool pi_bool = 0;
+double xi; 
+double yi;
 
-        double xi; 
-        double yi;
-        
-        double distance_to_target;
-        double angle_error;
+double distance_to_target, target_speed;
+double angle_error, target_angle;
 
-};
+double x_vehicle, y_vehicle, x_goal, y_goal;
 
 
 
-
-void Planner::target_speed(double xe, double ye, double xv, double yv, double& distance_to_target)
+void update_target_speed(double xe, double ye, double xv, double yv, double distance_to_target)
 {
     distance_to_target = sqrt(pow(xe - xv, 2) + pow(ye - yv, 2));
-    std_msgs::Float64 target_speed_msg
+    std_msgs::Float64 target_speed_msg;
     
     if (distance_to_target < 0.5) { // meter??
         target_speed = 0;
@@ -68,12 +59,12 @@ void Planner::target_speed(double xe, double ye, double xv, double yv, double& d
       target_speed = 0.5;
     }
 
-    target_speed_msg.target_speed = target_speed;
+    target_speed_msg.data = target_speed;
 
     target_speed_pub.publish(target_speed_msg);
 }
 
-void Planner::target_angle(double xe, double ye, double xv, double yv, double& angle_error)
+void update_target_angle(double xe, double ye, double xv, double yv, double angle_error)
 {
     radius = LOS_RADIUS;
     if (pi_bool == 0) { // starting pos
@@ -118,8 +109,8 @@ void Planner::target_angle(double xe, double ye, double xv, double yv, double& a
         transform(p_ia.begin(), p_ia.end(), p_ie.begin(), p_ae.begin(), minus<double>());
         
         angle_error= (atan2(p_ae[1], p_ae[0])); //in rads
-        std_msgs::Float64 target_angle_msg  
-        target_angle_msg.target_angle; = target_angle;
+        std_msgs::Float64 target_angle_msg;  
+        target_angle_msg.data = target_angle;
 
         target_speed_pub.publish(target_angle_msg);
 
@@ -127,36 +118,30 @@ void Planner::target_angle(double xe, double ye, double xv, double yv, double& a
 
 }
 
-void Planner::vehicleCallback (const virtual_infrastructure_pkg::vehicle_pose::ConstPtr& vehicle_pose) 
+void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
 {
-    x_vehicle  = vehicle_pose->x;
-    y_vehicle = vehicle_pose->y;
+    x_vehicle  = vehicle_pose_msg->x;
+    y_vehicle = vehicle_pose_msg->y;
 }
 
-void Planner::goalCallback (const virtual_infrastructure_pkg::goal_pose::ConstPtr& goal_pose) 
+void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg) 
 {
-    x_goal  = vehicle_pose->x;
-    y_goal = vehicle_pose->y;
+    x_goal  = goal_pose_msg->x;
+    y_goal = goal_pose_msg ->y;
 }
 
-Planner::Planner() 
-{
-  sub_vehicle = n.subscribe("/vehicle_pose",20, &Planner::vehicleCallback);
-  sub_goal = n.subscribe("/goal_pose",20, &Planner::goalCallback);
 
-  target_angle_pub = n.advertise<std_msgs::Float64>("/target_angle",20);
-  target_speed_pub = n.advertise<std_msgs::Float64>("/target_speed",20);
-
-
-
-  pi_bool = 0;
-}
 
 int main(int argc, char **argv)
 {
+  pi_bool = 0;  
   ros::init(argc, argv, "vehicle_planner");
 
-  Planner p;
+  sub_vehicle = n.subscribe("/vehicle_pose",20, &vehicleCallback);
+  sub_goal = n.subscribe("/goal_pose",20, &goalCallback);
+
+  target_angle_pub = n.advertise<std_msgs::Float64>("/target_angle",2);
+  target_speed_pub = n.advertise<std_msgs::Float64>("/target_speed",2);
 
   ros::spin();
 

@@ -4,13 +4,7 @@
 #include <std_msgs/Float64.h>
 #include <virtual_infrastructure_pkg/vehicle_pose.h>
 
-class vehicleOdometry {
-public:
-	
 
-	vehicleOdometry();
-	void PositionCallback(const virtual_infrastructure_pkg::vehicle_pose::ConstPtr& vehicle_pose);
-private:
 	double x = 0.0;
 	double y = 0.0;
 	double x_prev = 0.0;
@@ -22,17 +16,13 @@ private:
 	double vth = 0.0;
 	double dt;
 
-	ros::NodeHandle nh_odom;
 	ros::Time current_time, last_time;
 	ros::Publisher odom_pub;
 	ros::Subscriber sub;
 	tf::TransformBroadcaster odom_broadcaster;
 
-};
 
-
-
-void vehicleOdometry::PositionCallback (const virtual_infrastructure_pkg::vehicle_pose::ConstPtr& vehicle_pose) {
+void positionCallback (const virtual_infrastructure_pkg::vehicle_pose::ConstPtr& vehicle_pose) {
 		current_time = ros::Time::now();
 		dt = (current_time - last_time).toSec();
 
@@ -85,18 +75,19 @@ void vehicleOdometry::PositionCallback (const virtual_infrastructure_pkg::vehicl
 
 }
 
-vehicleOdometry::vehicleOdometry() {
-	current_time = ros::Time::now();
-	last_time = ros::Time::now();
-	sub = nh_odom.subscribe("/vehicle_pose",20, &vehicleOdometry::PositionCallback);
-	odom_pub = nh_odom.advertise<nav_msgs::Odometry>("/vehicle_odom", 20);
-}
+
+
+
 
 int main(int argc, char** argv){
 	
 	ros::init(argc, argv, "vehicle_odom");
+	ros::NodeHandle nh_odom;
 
-	vehicleOdometry vo;
+	current_time = ros::Time::now();
+	last_time = ros::Time::now();
+	sub = nh_odom.subscribe("/vehicle_pose",20, &positionCallback);
+	odom_pub = nh_odom.advertise<nav_msgs::Odometry>("/vehicle_odom", 20);
 
 	ros::spin();
 

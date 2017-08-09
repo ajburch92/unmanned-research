@@ -21,10 +21,6 @@
         name="ground_station_therm_node">
   </node>
 
-  <node pkg="virtual_infrastructure_pkg"
-        type="visual_odom"
-        name="visual_odom">
-  </node>
 
 </launch>
 

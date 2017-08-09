@@ -10,8 +10,9 @@
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
-#include <virtual_infrastructure_pkg/vehicle_posese.h>
-#include <virtual_infrastructure_pkg/goal_pose.h>
+//#include "vehicle_pose.h"
+//#include "goal_pose.h"
+#include <geometry_msgs/Pose2D.h>
 // opencv
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -29,16 +30,11 @@
 //object class
 #include "Object.h"
 //msg file headers
-#include <virtual_infrastructure_pkg/vehicle_pose.h>
-#include <virtual_infrastructure_pkg/goal_pose.h>
-
 
 using namespace std;
 
 // INITIALIZATION ////////////////////////////////////////////////////////////////////
-ros::NodeHandle nh_rgb;
-ros::Publisher rgb_vehicle_pub;
-ros::Publisher rgb_goal_pub;
+
 
 int counter = 0;
 
@@ -164,6 +160,9 @@ vector <Object> objects_blue;
 vector <Object> objects_green; 
 vector <Object> objects_yellow; 
 vector <Object> objects_red; 
+
+ros::Publisher rgb_vehicle_pub;
+ros::Publisher rgb_goal_pub;
 
 //
 // METHODS /////////////////////////////////////////////////////////////////////////////
@@ -418,15 +417,17 @@ x = (double)x_obj;
 y = (double)y_obj;
 th = atan2(y,x);
 
-virtual_infrastructure_pkg::vehicle_posese vehicle_posese_msg;
-virtual_infrastructure_pkg::goal_pose goal_pose_msg;
+//virtual_infrastructure_pkg::vehicle_pose vehicle_pose_msg;
+//virtual_infrastructure_pkg::goal_pose goal_pose_msg;
+geometry_msgs::Pose2D vehicle_pose_msg;
+geometry_msgs::Pose2D goal_pose_msg;
 
 if (name=="blue") { // vehicle
-	vehicle_posese_msg.x = x;
-	vehicle_posese_msg.y = y;
-	vehicle_posese_msg.th = th;
+	vehicle_pose_msg.x = x;
+	vehicle_pose_msg.y = y;
+	vehicle_pose_msg.theta = th;
 	ROS_INFO("vehicle pose: ( %f , %f ) : th = %f ",x,y,th);
-	rgb_vehicle_pub.publish(vehicle_posese_msg); 
+	rgb_vehicle_pub.publish(vehicle_pose_msg); 
 }
 else if (name=="red") { // goal
 	goal_pose_msg.x = x;
@@ -451,6 +452,7 @@ class RGBImageProcessor
 	image_transport::Subscriber rgb_sub_;
 	image_transport::Publisher rgb_pub_;
 
+
 public:
 
 	Mat background;
@@ -461,6 +463,10 @@ public:
     // Subscribe to input video feed and publish output video feed
 		rgb_sub_ = it_rgb.subscribe("/camera/image_raw",1, &RGBImageProcessor::rgbFeedCallback, this); // use image_rect
 		rgb_pub_ = it_rgb.advertise("ground_station_rgb_node",1);
+
+
+		rgb_vehicle_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("vehicle_pose",2);
+		rgb_goal_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("goal_pose",2);
 	}
 
 	~RGBImageProcessor()
@@ -659,9 +665,8 @@ int main(int argc, char** argv)
 {
 	ros::init(argc, argv, "ground_station_rgb_node");
 
+	ros::NodeHandle nh_rgb;
 
-	rgb_vehicle_pub = nh_rgb.advertise<virtual_infrastructure_pkg::vehicle_posese>("vehicle_pose",2);
-	rgb_goal_pub = nh_rgb.advertise<virtual_infrastructure_pkg::goal_pose>("goal_pose",2);
 	ROS_INFO("ground_station_rgb_node launching");
 
   //create background subtractor object

@@ -55,8 +55,8 @@ find_package(OpenCV REQUIRED)
 ## Generate messages in the 'msg' folder # Add messages for object position
 add_message_files(
   FILES
-  vehicle_pose.msg
-  goal_pose.msg
+  #vehicle_pose.msg
+  #goal_pose.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -131,7 +131,7 @@ include_directories( include
 
 ## Declare a library
 
-add_library( ${PROJECT_NAME} src/Object.cpp src/Odom.cpp src/Planner.cpp)
+add_library( ${PROJECT_NAME} src/Object.cpp src/Odom.cpp)# src/Planner.cpp)
 
 target_link_libraries(${PROJECT_NAME}
   ${OpenCV_LIBRARIES}
