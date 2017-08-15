@@ -29,7 +29,7 @@ void PtCloudProcessor::cloudCallback(const sensor_msgs::LaserScan::ConstPtr& sca
 
 int main(int argc, char** argv)
 {
-    ros::init(argc, argv, "point cloud processor");
+    ros::init(argc, argv, "point_cloud_processor");
 
     PtCloudProcessor pcp;
 

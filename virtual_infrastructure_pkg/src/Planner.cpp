@@ -14,13 +14,13 @@
 
 using namespace std;
 
-ros::NodeHandle n;
 
 
 ros::Publisher target_angle_pub;
 ros::Publisher target_speed_pub;
 ros::Subscriber sub_vehicle;
 ros::Subscriber sub_goal;
+
 double radius;
 vector <double> p_i;
 vector <double> p_e;
@@ -48,19 +48,19 @@ double x_vehicle, y_vehicle, x_goal, y_goal;
 
 
 
-void update_target_speed(double xe, double ye, double xv, double yv, double distance_to_target)
+void update_target_speed()
 {
-    distance_to_target = sqrt(pow(xe - xv, 2) + pow(ye - yv, 2));
+    distance_to_target = sqrt(pow(x_vehicle - x_goal, 2) + pow(y_vehicle - y_goal, 2));
     std_msgs::Float64 target_speed_msg;
     
-    if (distance_to_target < 0.5) { // meter??
-        target_speed = 0;
+    if (distance_to_target < 1) { // meter??
+        target_speed = target_speed*distance_to_target;
     } else {
       target_speed = 0.5;
     }
 
     target_speed_msg.data = target_speed;
-
+    ROS_INFO("target_speed: %f", target_speed_msg.data);
     target_speed_pub.publish(target_speed_msg);
 }
 
@@ -109,12 +109,12 @@ void update_target_angle(double xe, double ye, double xv, double yv, double angl
         transform(p_ia.begin(), p_ia.end(), p_ie.begin(), p_ae.begin(), minus<double>());
         
         angle_error= (atan2(p_ae[1], p_ae[0])); //in rads
-        std_msgs::Float64 target_angle_msg;  
-        target_angle_msg.data = target_angle;
+    }        
+    std_msgs::Float64 target_angle_msg;  
+    target_angle_msg.data = target_angle;
+    ROS_INFO("targe_angle: %f", target_angle_msg.data);
+    target_speed_pub.publish(target_angle_msg);
 
-        target_speed_pub.publish(target_angle_msg);
-
-    }
 
 }
 
@@ -122,12 +122,16 @@ void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg)
 {
     x_vehicle  = vehicle_pose_msg->x;
     y_vehicle = vehicle_pose_msg->y;
+    ROS_INFO("vehicleCallback: ( %f , %f )",x_vehicle,y_vehicle);
+    update_target_speed();
+
 }
 
 void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg) 
 {
     x_goal  = goal_pose_msg->x;
     y_goal = goal_pose_msg ->y;
+    ROS_INFO("goalCallback: ( %f , %f )",x_goal,y_goal);
 }
 
 
@@ -136,6 +140,7 @@ int main(int argc, char **argv)
 {
   pi_bool = 0;  
   ros::init(argc, argv, "vehicle_planner");
+  ros::NodeHandle n;
 
   sub_vehicle = n.subscribe("/vehicle_pose",20, &vehicleCallback);
   sub_goal = n.subscribe("/goal_pose",20, &goalCallback);

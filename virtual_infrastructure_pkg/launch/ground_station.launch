@@ -1,5 +1,4 @@
 <launch>  
-  <include file="$(find mavros)/launch/px4.launch"/>
   
   <include file="$(find pointgrey_camera_driver)/launch/camera.launch"/>
 
@@ -21,6 +20,15 @@
         name="ground_station_therm_node">
   </node>
 
+  <node pkg="virtual_infrastructure_pkg"
+        type="vehicle_odom"
+        name="vehicle_odom">
+  </node>
+
+  <node pkg="virtual_infrastructure_pkg"
+        type="vehicle_planner"
+        name="vehicle_planner">
+  </node>
 
 </launch>
 

@@ -40,7 +40,7 @@ public:
 	ThermImageConverter()
 	{
 
-		ros::Publisher therm_pub_ = nh_therm.advertise<sensor_msgs::Image>("ground_station_therm_node",1);
+		ros::Publisher therm_pub_ = nh_therm.advertise<sensor_msgs::Image>("ground_station_therm",1);
 
 		cv_bridge::CvImage img_bridge;
 		sensor_msgs::Image img_msg;

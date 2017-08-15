@@ -26,7 +26,12 @@ find_package(OpenCV REQUIRED)
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
-# catkin_python_setup()
+#catkin_python_setup()
+
+#install python scripts
+#catkin_install_python(PROGRAMS bin/yaml_info_pub
+#  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+
 
 ################################################
 ## Declare ROS messages, services and actions ##
@@ -53,11 +58,11 @@ find_package(OpenCV REQUIRED)
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder # Add messages for object position
-add_message_files(
-  FILES
-  #vehicle_pose.msg
-  #goal_pose.msg
-)
+#add_message_files(
+#   FILES
+#  vehicle_pose.msg
+#  goal_pose.msg
+#)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -226,6 +231,8 @@ add_executable(vehicle_planner src/Planner.cpp)
    ${catkin_LIBRARIES}
    ${PROJECT_NAME}
  )
+
+
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above

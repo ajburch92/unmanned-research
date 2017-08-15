@@ -1,9 +1,9 @@
 <launch>
-<arg name="left_camera_serial" default="16369047" />
-<arg name="left_camera_yaml" default="$(env HOME)/.ros/camera_info/$(arg left_camera_serial).yaml" />
+<arg name="camera_serial" default="0" />
+<arg name="camera_yaml" default="$(env HOME)/.ros/camera_info/$(arg camera_serial).yaml" />
 	<group ns="test">
 		<node pkg="hast" type="yaml_info_pub.py" name="info_py_node">
-			<param name="/camera_yaml" value="$(arg left_camera_yaml)" />
+			<param name="/camera_yaml" value="$(arg camera_yaml)" />
 		</node>
 	</group>
 </launch>

@@ -235,7 +235,7 @@ void morphologicalOps (Mat &thresh)
     dilateElement = getStructuringElement( MORPH_RECT,Size(dilateSize+1,dilateSize+1)); //dilate with larger element so make sure object is nicely visible
     dilate(thresh,thresh,dilateElement);
 
-  }
+}
 
 void detectObjects(Mat threshold, Mat &frame, string name) { // object detection 
   //generate temporary vectors
@@ -279,35 +279,35 @@ void detectObjects(Mat threshold, Mat &frame, string name) { // object detection
 
       }
       else objectFound = false;
-  }
-  if(objectFound ==true)
-  {
-        //draw object on frame
-  	drawObject(objects_temp,frame,contours_temp,hierarchy_temp);
-  }
-}
-else {
-	putText(frame,"NOISE! ADJUST FILTER",Point(0,50),1,2,Scalar(0,0,255),2); 
-}
-}
+	  }
+	  if(objectFound ==true)
+	  {
+	        //draw object on frame
+	  	drawObject(objects_temp,frame,contours_temp,hierarchy_temp);
+	  }
+	}
+	else {
+		putText(frame,"NOISE! ADJUST FILTER",Point(0,50),1,2,Scalar(0,0,255),2); 
+	}
+	}
 
-  //save temporary vectors as current        
-if (name=="blue") {
-	objects_blue = objects_temp;
-}
-else if (name=="green") {
-	objects_green = objects_temp;
-}
-else if (name=="yellow") {
-	objects_yellow = objects_temp;
-}
-else if (name=="red") {
-	objects_red = objects_temp;
-}
-  //clear temporary vectors
-contours_temp.clear();
-hierarchy_temp.clear();
-objects_temp.clear();
+	  //save temporary vectors as current        
+	if (name=="blue") {
+		objects_blue = objects_temp;
+	}
+	else if (name=="green") {
+		objects_green = objects_temp;
+	}
+	else if (name=="yellow") {
+		objects_yellow = objects_temp;
+	}
+	else if (name=="red") {
+		objects_red = objects_temp;
+	}
+    //clear temporary vectors
+	contours_temp.clear();
+	hierarchy_temp.clear();
+	objects_temp.clear();
 }
 
 
@@ -409,38 +409,38 @@ void trackObjects(Mat threshold, Mat &frame,vector<Object> objects, string name)
 	}
 	
 	//putText(frame,"CANT FIND OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
-//}
-  //draw object location on screen
+	//}
+	  //draw object location on screen
 
-//if vehicle, publish x,y,th .... if goal, publish x,y
-x = (double)x_obj;
-y = (double)y_obj;
-th = atan2(y,x);
+	//if vehicle, publish x,y,th .... if goal, publish x,y
+	x = (double)x_obj;
+	y = (double)y_obj;
+	th = atan2(y,x);
 
-//virtual_infrastructure_pkg::vehicle_pose vehicle_pose_msg;
-//virtual_infrastructure_pkg::goal_pose goal_pose_msg;
-geometry_msgs::Pose2D vehicle_pose_msg;
-geometry_msgs::Pose2D goal_pose_msg;
+	//virtual_infrastructure_pkg::vehicle_pose vehicle_pose_msg;
+	//virtual_infrastructure_pkg::goal_pose goal_pose_msg;
+	geometry_msgs::Pose2D vehicle_pose_msg;
+	geometry_msgs::Pose2D goal_pose_msg;
 
-if (name=="blue") { // vehicle
-	vehicle_pose_msg.x = x;
-	vehicle_pose_msg.y = y;
-	vehicle_pose_msg.theta = th;
-	ROS_INFO("vehicle pose: ( %f , %f ) : th = %f ",x,y,th);
-	rgb_vehicle_pub.publish(vehicle_pose_msg); 
-}
-else if (name=="red") { // goal
-	goal_pose_msg.x = x;
-	goal_pose_msg.y = y;
-	ROS_INFO("goal pose: ( %f , %f ) ",x,y);
-	rgb_goal_pub.publish(goal_pose_msg); 
-}
+	if (name=="blue") { // vehicle
+		vehicle_pose_msg.x = x;
+		vehicle_pose_msg.y = y;
+		vehicle_pose_msg.theta = th;
+		ROS_INFO("vehicle pose: ( %f , %f ) : th = %f ",x,y,th);
+		rgb_vehicle_pub.publish(vehicle_pose_msg); 
+	}
+	else if (name=="red") { // goal
+		goal_pose_msg.x = x;
+		goal_pose_msg.y = y;
+		ROS_INFO("goal pose: ( %f , %f ) ",x,y);
+		rgb_goal_pub.publish(goal_pose_msg); 
+	}
 
 
 
-drawObject(objects,frame, contours,hierarchy);
-contours_prev = contours;
-hierarchy_prev = hierarchy;
+	drawObject(objects,frame, contours,hierarchy);
+	contours_prev = contours;
+	hierarchy_prev = hierarchy;
 
 }
 
@@ -461,12 +461,10 @@ public:
 	: it_rgb(nh_rgb)
 	{
     // Subscribe to input video feed and publish output video feed
-		rgb_sub_ = it_rgb.subscribe("/camera/image_raw",1, &RGBImageProcessor::rgbFeedCallback, this); // use image_rect
-		rgb_pub_ = it_rgb.advertise("ground_station_rgb_node",1);
+		rgb_pub_ = it_rgb.advertise("/ground_station_rgb",2);
+		rgb_sub_ = it_rgb.subscribe("/camera/image_rect_color",20, &RGBImageProcessor::rgbFeedCallback, this); // use image_rect
 
 
-		rgb_vehicle_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("vehicle_pose",2);
-		rgb_goal_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("goal_pose",2);
 	}
 
 	~RGBImageProcessor()
@@ -666,14 +664,15 @@ int main(int argc, char** argv)
 	ros::init(argc, argv, "ground_station_rgb_node");
 
 	ros::NodeHandle nh_rgb;
-
+	rgb_vehicle_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("vehicle_pose",2);
+	rgb_goal_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("goal_pose",2);
 	ROS_INFO("ground_station_rgb_node launching");
 
   //create background subtractor object
 	pMOG = new BackgroundSubtractorMOG();
 
   //launch image convertor
-	RGBImageProcessor rip(	ros::NodeHandle nh_rgb);
+	RGBImageProcessor rip(ros::NodeHandle nh_rgb);
 
 	ros::spin();
 

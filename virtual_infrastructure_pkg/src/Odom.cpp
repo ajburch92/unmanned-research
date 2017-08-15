@@ -2,34 +2,40 @@
 #include <tf/transform_broadcaster.h>
 #include <nav_msgs/Odometry.h>
 #include <std_msgs/Float64.h>
+#include <geometry_msgs/Pose2D.h>
 #include <virtual_infrastructure_pkg/vehicle_pose.h>
 
 
-	double x = 0.0;
-	double y = 0.0;
-	double x_prev = 0.0;
-	double y_prev = 0.0;
-	double th_prev = 0.0;
-	double th = 0.0;
-	double vx = 0.0;
-	double vy = 0.0;
-	double vth = 0.0;
-	double dt;
+class Odom
+{
+public:
+	Odom()
+	{
+		current_time = ros::Time::now();
+		last_time = ros::Time::now();
+		odom_pub = nh_odom.advertise<nav_msgs::Odometry>("/vehicle_odom", 2);
+		sub = nh_odom.subscribe("/vehicle_pose",20, &Odom::positionCallback, this);
 
-	ros::Time current_time, last_time;
-	ros::Publisher odom_pub;
-	ros::Subscriber sub;
-	tf::TransformBroadcaster odom_broadcaster;
+		x = 0.0;
+		y = 0.0;
+		x_prev = 0.0;
+		y_prev = 0.0;
+		th_prev = 0.0;
+		th = 0.0;
+		vx = 0.0;
+		vy = 0.0;
+		th = 0.0;
+	}
 
-
-void positionCallback (const virtual_infrastructure_pkg::vehicle_pose::ConstPtr& vehicle_pose) {
+	void positionCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
+	{
 		current_time = ros::Time::now();
 		dt = (current_time - last_time).toSec();
 
 		// read msg data
-		x = vehicle_pose->x;
-		y = vehicle_pose->y;
-		th = vehicle_pose->th;
+		x = vehicle_pose_msg->x;
+		y = vehicle_pose_msg->y;
+		th = vehicle_pose_msg->theta;
 
 		// calculate velocities
 		vx = (x-x_prev)/dt;
@@ -73,21 +79,33 @@ void positionCallback (const virtual_infrastructure_pkg::vehicle_pose::ConstPtr&
 
 		last_time = current_time;
 
-}
+	}
 
+private:
+	ros::NodeHandle nh_odom;
+	ros::Time current_time, last_time;
+	ros::Publisher odom_pub;
+	ros::Subscriber sub;
+	tf::TransformBroadcaster odom_broadcaster;
 
+	double x;
+	double y;
+	double x_prev;
+	double y_prev;
+	double th_prev;
+	double th;
+	double vx;
+	double vy;
+	double vth;
+	double dt;
 
-
+};
 
 int main(int argc, char** argv){
 	
 	ros::init(argc, argv, "vehicle_odom");
-	ros::NodeHandle nh_odom;
 
-	current_time = ros::Time::now();
-	last_time = ros::Time::now();
-	sub = nh_odom.subscribe("/vehicle_pose",20, &positionCallback);
-	odom_pub = nh_odom.advertise<nav_msgs::Odometry>("/vehicle_odom", 20);
+	Odom o;
 
 	ros::spin();
 
