@@ -85,9 +85,9 @@ const string trackbar_window_name = "Parameter Palate" ;
 Mat dialog_box;
 
 //pallate controls
-int lowThreshold = 50;
-int dilateSize = 30;
-int erodeSize = 15;
+int lowThreshold = 10;
+int dilateSize = 20;
+int erodeSize = 10;
 int const max_lowThreshold = 255;
 int const max_dilate = 100;
 int const max_erode = 100;
@@ -95,19 +95,19 @@ int ratio = 3;
 int kernel_size = 3;
 
 //Color Segmentation Values
-double H_BMIN = 90;
+double H_BMIN = 91;
 double H_BMAX = 136;
-double S_BMIN = 100;
-double S_BMAX = 186;
-double V_BMIN = 20;
-double V_BMAX = 135;
+double S_BMIN = 0;
+double S_BMAX = 255;
+double V_BMIN = 0;
+double V_BMAX = 255;
 
-int H_GMIN = 34;
-int H_GMAX = 80;
+int H_GMIN = 20;
+int H_GMAX = 90;
 int S_GMIN = 50;
-int S_GMAX = 220;
+int S_GMAX = 230;
 int V_GMIN = 50;
-int V_GMAX = 200;
+int V_GMAX = 230;
 
 int H_YMIN = 20;
 int H_YMAX = 30;
@@ -117,17 +117,17 @@ int V_YMIN = 50;
 int V_YMAX = 200;
 
 int H_RMIN = 0;
-int H_RMAX = 196;
-int S_RMIN = 100;
-int S_RMAX = 196;
-int V_RMIN = 30;
-int V_RMAX = 76;
+int H_RMAX = 19;
+int S_RMIN = 180;
+int S_RMAX = 255;
+int V_RMIN = 0;
+int V_RMAX = 255;
 
-int H_MIN = 1;
+int H_MIN = 0;
 int H_MAX = 255;
-int S_MIN = 1;
+int S_MIN = 0;
 int S_MAX = 255;
-int V_MIN = 1;
+int V_MIN = 0;
 int V_MAX = 255;
 
 //Distortion parameters
@@ -419,21 +419,21 @@ void trackObjects(Mat threshold, Mat &frame,vector<Object> objects, string name)
 
 	//virtual_infrastructure_pkg::vehicle_pose vehicle_pose_msg;
 	//virtual_infrastructure_pkg::goal_pose goal_pose_msg;
-	geometry_msgs::Pose2D vehicle_pose_msg;
-	geometry_msgs::Pose2D goal_pose_msg;
+	//geometry_msgs::Pose2D vehicle_pose_msg;
+	//geometry_msgs::Pose2D goal_pose_msg;
 
-	if (name=="blue") { // vehicle
-		vehicle_pose_msg.x = x;
-		vehicle_pose_msg.y = y;
-		vehicle_pose_msg.theta = th;
+	if (name=="red") { // vehicle
+		//vehicle_pose_msg.x = x;
+		//vehicle_pose_msg.y = y;
+		//vehicle_pose_msg.theta = th;
 		ROS_INFO("vehicle pose: ( %f , %f ) : th = %f ",x,y,th);
-		rgb_vehicle_pub.publish(vehicle_pose_msg); 
+		//rgb_vehicle_pub.publish(vehicle_pose_msg); 
 	}
-	else if (name=="red") { // goal
-		goal_pose_msg.x = x;
-		goal_pose_msg.y = y;
+	else if (name=="green") { // goal
+		//goal_pose_msg.x = x;
+		//goal_pose_msg.y = y;
 		ROS_INFO("goal pose: ( %f , %f ) ",x,y);
-		rgb_goal_pub.publish(goal_pose_msg); 
+		//rgb_goal_pub.publish(goal_pose_msg); 
 	}
 
 
@@ -448,6 +448,7 @@ void trackObjects(Mat threshold, Mat &frame,vector<Object> objects, string name)
 
 class RGBImageProcessor
 {
+	ros::NodeHandle nh_rgb;
 	image_transport::ImageTransport it_rgb;
 	image_transport::Subscriber rgb_sub_;
 	image_transport::Publisher rgb_pub_;
@@ -457,14 +458,12 @@ public:
 
 	Mat background;
 
-	RGBImageProcessor(ros::NodeHandle nh_rgb )
+	RGBImageProcessor()
 	: it_rgb(nh_rgb)
 	{
     // Subscribe to input video feed and publish output video feed
-		rgb_pub_ = it_rgb.advertise("/ground_station_rgb",2);
-		rgb_sub_ = it_rgb.subscribe("/camera/image_rect_color",20, &RGBImageProcessor::rgbFeedCallback, this); // use image_rect
-
-
+		rgb_sub_ = it_rgb.subscribe("/camera/image_rect_color",1, &RGBImageProcessor::rgbFeedCallback, this); // use image_rect
+		rgb_pub_ = it_rgb.advertise("/ground_station_rgb",1);
 	}
 
 	~RGBImageProcessor()
@@ -485,7 +484,7 @@ public:
 		}
 		catch (cv_bridge::Exception& e)
 		{
-			ROS_ERROR("cv_bridge exception: %s", e.what());
+			ROS_INFO("cv_bridge exception: %s", e.what());
 			return;
 		}
 
@@ -582,7 +581,7 @@ public:
 	    	{
 	    		detectObjects(BLUEthreshold,objectFeed,"blue");
 	    		detectObjects(GREENthreshold,objectFeed,"green");
-	    		detectObjects(YELLOWthreshold,objectFeed,"yellow");
+	    		//detectObjects(YELLOWthreshold,objectFeed,"yellow");
 	    		detectObjects(REDthreshold,objectFeed,"red");
 	    		putText(cameraFeed,"DETECTING OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
 
@@ -591,7 +590,7 @@ public:
 	      {
 	      	trackObjects(BLUEthreshold,objectFeed,objects_blue,"blue");
 	      	trackObjects(GREENthreshold,objectFeed,objects_green,"green");
-	      	trackObjects(YELLOWthreshold,objectFeed,objects_yellow,"yellow");
+	      	//trackObjects(YELLOWthreshold,objectFeed,objects_yellow,"yellow");
 	      	trackObjects(REDthreshold,objectFeed,objects_red,"red");
 	      	putText(cameraFeed,"TRACKING OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
 	      }
@@ -663,16 +662,15 @@ int main(int argc, char** argv)
 {
 	ros::init(argc, argv, "ground_station_rgb_node");
 
-	ros::NodeHandle nh_rgb;
-	rgb_vehicle_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("vehicle_pose",2);
-	rgb_goal_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("goal_pose",2);
+	//rgb_vehicle_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("vehicle_pose",2);
+	//rgb_goal_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("goal_pose",2);
 	ROS_INFO("ground_station_rgb_node launching");
 
   //create background subtractor object
 	pMOG = new BackgroundSubtractorMOG();
 
   //launch image convertor
-	RGBImageProcessor rip(ros::NodeHandle nh_rgb);
+	RGBImageProcessor rip;
 
 	ros::spin();
 
