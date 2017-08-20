@@ -14,8 +14,6 @@
 
 using namespace std;
 
-
-
 ros::Publisher target_angle_pub;
 ros::Publisher target_speed_pub;
 ros::Subscriber sub_vehicle;
@@ -53,35 +51,36 @@ void update_target_speed()
     distance_to_target = sqrt(pow(x_vehicle - x_goal, 2) + pow(y_vehicle - y_goal, 2));
     std_msgs::Float64 target_speed_msg;
     
-    if (distance_to_target < 1) { // meter??
+    if (distance_to_target < 1) { // meter?? NEED TO CONVERT FROM PIXELS TO METERS
         target_speed = target_speed*distance_to_target;
     } else {
       target_speed = 0.5;
     }
 
     target_speed_msg.data = target_speed;
-    ROS_INFO("target_speed: %f", target_speed_msg.data);
+    //ROS_INFO("target_speed: %f", target_speed_msg.data);
     target_speed_pub.publish(target_speed_msg);
 }
 
-void update_target_angle(double xe, double ye, double xv, double yv, double angle_error)
+void update_target_angle()
 {
     radius = LOS_RADIUS;
     if (pi_bool == 0) { // starting pos
-        p_i[0] = xe;
-        p_i[1] = ye;
+        p_i[0] = x_vehicle;
+        p_i[1] = y_vehicle;
         pi_bool =1;
+        ROS_INFO("p_i = %f,%f",p_i[0],p_i[1]);
+
     }
     // init
-    p_e[0] = xe;
-    p_e[1] = ye;
-    p_v[0] = xv;
-    p_v[1] = yv;
+    p_e[0] = x_vehicle;
+    p_e[1] = y_vehicle;
+    p_v[0] = x_goal;
+    p_v[1] = y_goal;
     // p_ie
     transform(p_e.begin(), p_e.end(), p_i.begin(), p_ie.begin(), minus<double>());
     // p_iv
     transform(p_v.begin(), p_v.end(), p_i.begin(), p_iv.begin(), minus<double>());
-
     // p_e
     transform(p_v.begin(), p_v.end(), p_e.begin(), p_ev.begin(), minus<double>());
 
@@ -109,10 +108,11 @@ void update_target_angle(double xe, double ye, double xv, double yv, double angl
         transform(p_ia.begin(), p_ia.end(), p_ie.begin(), p_ae.begin(), minus<double>());
         
         angle_error= (atan2(p_ae[1], p_ae[0])); //in rads
-    }        
+    }
+    target_angle = angle_error;        
     std_msgs::Float64 target_angle_msg;  
     target_angle_msg.data = target_angle;
-    ROS_INFO("targe_angle: %f", target_angle_msg.data);
+    ROS_INFO("target_angle: %f", target_angle_msg.data);
     target_speed_pub.publish(target_angle_msg);
 
 
@@ -124,6 +124,7 @@ void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg)
     y_vehicle = vehicle_pose_msg->y;
     ROS_INFO("vehicleCallback: ( %f , %f )",x_vehicle,y_vehicle);
     update_target_speed();
+    update_target_angle();
 
 }
 
@@ -132,6 +133,8 @@ void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg)
     x_goal  = goal_pose_msg->x;
     y_goal = goal_pose_msg ->y;
     ROS_INFO("goalCallback: ( %f , %f )",x_goal,y_goal);
+    update_target_speed();
+    update_target_angle();
 }
 
 
@@ -139,6 +142,11 @@ void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg)
 int main(int argc, char **argv)
 {
   pi_bool = 0;  
+  x_goal = 0;
+  y_goal = 0;
+  x_vehicle = 0;
+  y_vehicle = 0;
+
   ros::init(argc, argv, "vehicle_planner");
   ros::NodeHandle n;
 

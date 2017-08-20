@@ -79,12 +79,13 @@ int Object::getXPos(int i){ // i = MEMORY_SIZE is equal to the current reading
 
 void Object::setXPos(int x){
 	xPos_curr = x;
+	rollXVectors();
 	xVel_curr = velXFilter(); // 
 	// store prev
 	xPos_prev = xPos_curr;
 	xVel_prev = xVel_curr;
 	// roll deques
-	rollXVectors();
+
 }
 
 int Object::getYPos(int i){
@@ -95,10 +96,11 @@ int Object::getYPos(int i){
 void Object::setYPos(int y){
 
 	yPos_curr = y;
-	yVel_curr = velYFilter();
-	yPos_prev = xPos_curr;
-	yVel_prev = yVel_curr;
 	rollYVectors();
+	yVel_curr = velYFilter();
+	yPos_prev = yPos_curr;
+	yVel_prev = yVel_curr;
+
 }
 
 float Object::getYVel(int i){
@@ -106,7 +108,8 @@ float Object::getYVel(int i){
 }
 
 float Object::velXFilter() {
-	float vel_curr = ((float)((xPos_curr - xPos_prev) * FPS) + xVel_prev) / 2 ; //moving avg of tail = 1, w = 0.5
+	float vel_curr = (((xPos_curr - xPos_prev) * FPS) + xVel_prev) / 2 ; //moving avg of tail = 1, w = 0.5
+	ROS_INFO("vel = %f",vel_curr);
 	return vel_curr;
 }
 
@@ -124,10 +127,14 @@ float Object::getXVel(int i){
 void Object::rollXVectors() {
 	xPos_vec[0] = xPos_curr;
 	rotate(xPos_vec.begin(), xPos_vec.begin() + 1, xPos_vec.end());
-	ROS_INFO("xfirst= %i", xPos_vec[0]);
-	ROS_INFO("xlast= %i", xPos_vec[MEMORY_SIZE-1]);
-	ROS_INFO("xsecondtolast= %i", xPos_vec[MEMORY_SIZE-2]);
-	ROS_INFO("xthirdtolast= %i", xPos_vec[MEMORY_SIZE-3]);
+	ROS_INFO("xfirst= %i", yPos_vec[0]);
+	ROS_INFO("xlast= %i", yPos_vec[MEMORY_SIZE-1]);
+	ROS_INFO("xsecondtolast= %i", yPos_vec[MEMORY_SIZE-2]);
+	ROS_INFO("xthirdtolast= %i", yPos_vec[MEMORY_SIZE-3]);
+	ROS_INFO("x4thtolast= %i", yPos_vec[MEMORY_SIZE-4]);
+	ROS_INFO("x5thtolast= %i", yPos_vec[MEMORY_SIZE-5]);
+	ROS_INFO("x6thtolast= %i", yPos_vec[MEMORY_SIZE-6]);
+
 
 	xVel_vec[0] = xVel_curr;
 	rotate(xVel_vec.begin(), xVel_vec.begin() + 1, xVel_vec.end());
