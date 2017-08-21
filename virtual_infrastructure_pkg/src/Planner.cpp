@@ -54,7 +54,7 @@ void update_target_speed()
     if (distance_to_target < 1) { // meter?? NEED TO CONVERT FROM PIXELS TO METERS
         target_speed = target_speed*distance_to_target;
     } else {
-      target_speed = 0.5;
+      target_speed = 1.5;
     }
 
     target_speed_msg.data = target_speed;
@@ -85,35 +85,37 @@ void update_target_angle()
     transform(p_v.begin(), p_v.end(), p_e.begin(), p_ev.begin(), minus<double>());
 
     // e_CTE
-    Mag_num = p_ev[0] * p_iv[1] - p_iv[1] * p_ev[0]; //2D cross prod?
+    Mag_num = p_ev[0] * p_iv[1] - p_ev[1] * p_iv[0]; //2D cross prod?
     Mag_den = sqrt(pow(p_iv[0], 2.0) + pow(p_iv[1], 2.0));
     e_CTE = Mag_num / Mag_den;
     // Do A projection here before if statement, store p_a
     // implement if wrap for e_CTE<r_LOS
+
+    // p_b
+    //projection, p_ia =  A || B = A•B * B/|B|^2
+    p_ia[0] = inner_product(p_ie.begin(), p_ie.end(), p_iv.begin(), 0) * p_iv[0] / pow(Mag_den, 2.0);
+    p_ia[1] = inner_product(p_ie.begin(), p_ie.end(), p_iv.begin(), 0) * p_iv[1] / pow(Mag_den, 2.0);
+    p_b[0] = p_ia[0] + p_i[0] + p_iv[0] / Mag_den * sqrt(pow(radius, 2.0) + pow(e_CTE, 2.0));
+    p_b[1] = p_ia[1] + p_i[1] + p_iv[1] / Mag_den * sqrt(pow(radius, 2.0) + pow(e_CTE, 2.0));
+    
+    // p_eb
+    transform(p_b.begin(), p_b.end(), p_e.begin(), p_eb.begin(), minus<double>());
+    
+    // compute p_ae = p_ia - p_ie
+    transform(p_ia.begin(), p_ia.end(), p_ie.begin(), p_ae.begin(), minus<double>());
     if (e_CTE <= radius) {
-        // p_b
-        //projection, p_ia =  A || B = A•B * B/|B|^2
-        p_ia[0] = inner_product(p_ie.begin(), p_ie.end(), p_iv.begin(), 0) * p_iv[0] / pow(Mag_den, 2.0);
-        p_ia[1] = inner_product(p_ie.begin(), p_ie.end(), p_iv.begin(), 0) * p_iv[1] / pow(Mag_den, 2.0);
-        p_b[0] = p_ia[0] + p_i[0] + p_iv[0] / Mag_den * sqrt(pow(radius, 2.0) + pow(e_CTE, 2.0));
-        p_b[1] = p_ia[1] + p_i[1] + p_iv[1] / Mag_den * sqrt(pow(radius, 2.0) + pow(e_CTE, 2.0));
-        
-        // p_eb
-        transform(p_b.begin(), p_b.end(), p_e.begin(), p_eb.begin(), minus<double>());
-        
         // r_theta
         angle_error = atan2(p_eb[1], p_eb[0]) ; //in rads
+
     } else { // vehicle is further than LOS_radius from the path
-        // compute p_ae = p_ia - p_ie
-        transform(p_ia.begin(), p_ia.end(), p_ie.begin(), p_ae.begin(), minus<double>());
-        
+
         angle_error= (atan2(p_ae[1], p_ae[0])); //in rads
     }
     target_angle = angle_error;        
     std_msgs::Float64 target_angle_msg;  
     target_angle_msg.data = target_angle;
     ROS_INFO("target_angle: %f", target_angle_msg.data);
-    target_speed_pub.publish(target_angle_msg);
+    target_angle_pub.publish(target_angle_msg);
 
 
 }
@@ -133,8 +135,8 @@ void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg)
     x_goal  = goal_pose_msg->x;
     y_goal = goal_pose_msg ->y;
     ROS_INFO("goalCallback: ( %f , %f )",x_goal,y_goal);
-    update_target_speed();
-    update_target_angle();
+    //update_target_speed();
+    //update_target_angle();
 }
 
 
@@ -146,6 +148,16 @@ int main(int argc, char **argv)
   y_goal = 0;
   x_vehicle = 0;
   y_vehicle = 0;
+  p_e.resize(2);
+  p_i.resize(2);
+  p_v.resize(2);
+  p_ie.resize(2);
+  p_iv.resize(2);
+  p_ev.resize(2);
+  p_ia.resize(2);
+  p_b.resize(2);
+  p_eb.resize(2);
+  p_ae.resize(2);
 
   ros::init(argc, argv, "vehicle_planner");
   ros::NodeHandle n;
