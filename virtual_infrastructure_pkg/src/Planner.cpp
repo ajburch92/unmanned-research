@@ -10,7 +10,7 @@
 #include <vector>
 #include <numeric>
 
-#define LOS_RADIUS 1
+#define LOS_RADIUS 100 //currently in pixels
 
 using namespace std;
 
@@ -51,7 +51,7 @@ void update_target_speed()
     distance_to_target = sqrt(pow(x_vehicle - x_goal, 2) + pow(y_vehicle - y_goal, 2));
     std_msgs::Float64 target_speed_msg;
     
-    if (distance_to_target < 1) { // meter?? NEED TO CONVERT FROM PIXELS TO METERS
+    if (distance_to_target < 100) { // meter?? NEED TO CONVERT FROM PIXELS TO METERS
         target_speed = target_speed*distance_to_target;
     } else {
       target_speed = 1.5;
