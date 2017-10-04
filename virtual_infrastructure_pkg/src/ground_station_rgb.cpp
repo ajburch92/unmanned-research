@@ -47,10 +47,15 @@ public:
 	image_transport::ImageTransport it_rgb(nh_rgb);
 	rgb_sub_ = it_rgb.subscribe("/camera/image_rect_color",1, &RGBImageProcessor::rgbFeedCallback, this); // use image_rect
 	rgb_pub_ = it_rgb.advertise("/ground_station_rgb",1);
+	occupancyGrid_pub = it_rgb.advertise("/occupancyGrid" , 1);
 	rgb_vehicle_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("vehicle_pose",2);
 	rgb_goal_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("goal_pose",2);
+	
+	// store launch params
+	nh_rgb.param("checkerboard_width", checkerboard_width, -1);
+	nh_rgb.param("checkerboard_height", checkerboard_height, -1);
+	//create background subtractor object
 
-		  //create background subtractor object
 	pMOG = new BackgroundSubtractorMOG();
 
 
@@ -88,6 +93,28 @@ public:
 		createTrackbar( "V_MAX", windowName7, &V_MAX, V_MAX);
 	}
 
+	void calibrateCheckerboard() {
+			
+		height_factor = (double) checkerboard_height / checkerboard_PXheight ;
+		width_factor = (double) checkerboard_width / checkerboard_PXwidth ; // conver to Meters
+
+		ROS_INFO("height_factor = %f" , height_factor);
+	    ROS_INFO("width_factor = %f" , width_factor); 
+	}
+
+	void downsampleGrid(Mat grid) {
+		downsample_factor = 10;
+		pyrDown( grid, gridDown, Size( grid.cols/downsample_factor, grid.rows/downsample_factor ) );
+
+		//get size
+		gridDown_height = gridDown.rows ;
+		gridDown_width =  gridDown.cols ; 
+
+		ROS_INFO("downsampled occupancy grid height = %i" , gridDown_height);
+		ROS_INFO("downsampled occupancy grid width = %i" , gridDown_width);
+
+
+	}
 
 	void drawObject(vector<Object> theObjects, Mat &frame, vector< vector<Point> > contours, vector<Vec4i> hierarchy)
 	{ // draw on frame
@@ -134,16 +161,16 @@ public:
 
 	}
 
-	void morphologicalOps (Mat &thresh) 
+	void morphologicalOps (Mat &thresh, int erodeS, int dilateS) 
 	{
 		GaussianBlur(thresh,thresh,Size(blurSize,blurSize),sigmaSize,sigmaSize);
 
 		threshold(thresh, thresh, lowThreshold, 255, cv::THRESH_BINARY);
 
-	    erodeElement = getStructuringElement( MORPH_RECT,Size(erodeSize+1,erodeSize+1)); //erode with 3x3 px rectangle
+	    erodeElement = getStructuringElement( MORPH_RECT,Size(erodeS+1,erodeS+1)); //erode with 3x3 px rectangle
 	    erode(thresh,thresh,erodeElement);
 
-	    dilateElement = getStructuringElement( MORPH_RECT,Size(dilateSize+1,dilateSize+1)); //dilate with larger element so make sure object is nicely visible
+	    dilateElement = getStructuringElement( MORPH_RECT,Size(dilateS+1,dilateS+1)); //dilate with larger element so make sure object is nicely visible
 	    dilate(thresh,thresh,dilateElement);
 
 	}
@@ -350,7 +377,7 @@ public:
 			goal_pose_msg.y = y;
 			ROS_INFO("goal pose: ( %f , %f ) ",x,y);
 			rgb_goal_pub.publish(goal_pose_msg); 
-		}
+		} else {};
 
 
 
@@ -364,7 +391,9 @@ public:
 	{
 
 		cv_bridge::CvImage img_bridge;
+		cv_bridge::CvImage occupancy_bridge;
 		sensor_msgs::Image img_msg;
+		sensor_msgs::Image occupancyGrid_msg;
 		cv_bridge::CvImagePtr rgb_cv_ptr;
 		
 		try
@@ -417,10 +446,35 @@ public:
 
 	    		Homogeneous = getPerspectiveTransform(objPts, imgPts);
 
-	    	}
+	    		Homogeneous.at<double>(2,2) = birdseyeHeight;
+	    		warpPerspective(cameraFeed, birdseyeFeed, Homogeneous, cameraFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 
-	    	Homogeneous.at<double>(2,2) = birdseyeHeight;
-	    	warpPerspective(cameraFeed, birdseyeFeed, Homogeneous, cameraFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+	    		cvtColor(birdseyeFeed, birdgrayFeed, COLOR_BGR2GRAY);
+	    		cornerSubPix(birdgrayFeed, transCorners, Size(11,11),Size(-1,-1), TermCriteria( cv::TermCriteria::EPS | cv::TermCriteria::COUNT, 30, 0.1));
+
+	    		imgPts[0]=corners[0];
+	    		imgPts[1]=corners[board_w-1];
+	    		imgPts[2]=corners[(board_h-1)*board_w];
+	    		imgPts[3]=corners[(board_h-1)*board_w+board_w-1];
+	    		
+	    		//checkerboard_PXwidth = ((imgPts[1] - imgPts[0]) + (imgPts[1] - imgPts[0]))/2; 
+	    		//widthDif =  (imgPts[1] - imgPts[0]) - (imgPts[1] - imgPts[0]);
+	    		//checkerboard_PXheight = ((imgPts[0] - imgPts[2]) + (imgPts[1] - imgPts[3]))/2;
+				//heightDif =  (imgPts[1] - imgPts[0]) - (imgPts[1] - imgPts[0]);
+				int widthDif = 0;
+				int heightDif = 0;
+		    	Homogeneous.at<double>(2,2) = birdseyeHeight;						
+		    	ROS_INFO("heightDif = %i" , heightDif);
+		    	warpPerspective(cameraFeed, birdseyeFeed, Homogeneous, cameraFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+		    	ROS_INFO("widthDif = %i" , widthDif); 
+			
+	    		calibrateCheckerboard();
+	
+	    	} else {	
+	
+		    		Homogeneous.at<double>(2,2) = birdseyeHeight;
+		    		warpPerspective(cameraFeed, birdseyeFeed, Homogeneous, cameraFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+			}
 
 	    	circle(cameraFeed, imgPts[0], 9, Scalar(255,0,0),3);
 	    	circle(cameraFeed, imgPts[1], 9, Scalar(0,255,0),3);
@@ -436,7 +490,7 @@ public:
 	    	inRange(HSV,Scalar(H_MIN,S_MIN,V_MIN),Scalar(H_MAX,S_MAX,V_MAX),HSVthreshold);
 
 
-	    	morphologicalOps(fgMaskMOG);
+	    	morphologicalOps(fgMaskMOG, erodeSize, dilateSize);
 
 	      // Apply object feed mask
 	    	objectFeed = Scalar::all(0);
@@ -457,19 +511,23 @@ public:
 
 
 	      // morphological operations on HSVobjects
-	    	morphologicalOps(BLUEthreshold);
+	    	morphologicalOps(BLUEthreshold, erodeSize, dilateSize);
 	    	//morphologicalOps(GREENthreshold);
-	    	morphologicalOps(YELLOWthreshold);
+	    	morphologicalOps(YELLOWthreshold, erodeSize, dilateSize);
 	    	//morphologicalOps(REDthreshold);
 	    	HSVobjects = YELLOWthreshold + BLUEthreshold ;
 
 	    	//SVobjects = BLUEthreshold + GREENthreshold + YELLOWthreshold + REDthreshold ;
 
 	      // isolate objects from HSVobjects
-	      //cameraFeed.copyTo(HSVobjects_invert);
-	/*      cameraFeed = objectFeed - HSVobjects;
-	      bitwise_not(HSVobjects,HSVobjects_invert);
-	      bitwise_and(objectFeed,HSVobjects_invert,cameraFeed); */
+	    	Mat occupancyGrid(objectFeed.rows,objectFeed.cols,CV_8UC1);
+	    	Mat objectFeed_thresh(objectFeed.rows,objectFeed.cols,CV_8UC1);
+	    	cvtColor(objectFeed,objectFeed_thresh,CV_BGR2GRAY);
+			threshold(objectFeed_thresh, objectFeed_thresh, 1, 255, cv::THRESH_BINARY);
+			threshold(HSVobjects, HSVobjects, 1, 255, cv::THRESH_BINARY);
+			morphologicalOps(HSVobjects, 1, astar_size);
+	        subtract(objectFeed_thresh,HSVobjects,occupancyGrid);
+	        morphologicalOps(objectFeed_thresh, 3, astar_size);
 
 	      // either object detection or tracking mode
 	    	if (tracking_status == FALSE)
@@ -483,12 +541,20 @@ public:
 	    	} 
 	      else // tracking mode turned on
 	      {
+	      	// for VISUALIZATION???
+	      	detectObjects(cameraFeed,objectFeed, " ");
+
 	      	trackObjects(BLUEthreshold,objectFeed,objects_blue,"blue");
 	      	//trackObjects(GREENthreshold,objectFeed,objects_green,"green");
 	      	trackObjects(YELLOWthreshold,objectFeed,objects_yellow,"yellow");
 	      	//trackObjects(REDthreshold,objectFeed,objects_red,"red");
 	      	putText(cameraFeed,"TRACKING OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
+
 	      }
+
+
+	      // downsample objectFeed to get occupancy grid
+		  downsampleGrid(occupancyGrid);
 
 	      // Create processing palate
 	      //putText(dialog_box, "text test", Point(0,50),1,2,Scalar(255),2);
@@ -510,7 +576,7 @@ public:
 	      imshow(windowName3,objectFeed);
 	      imshow(windowName,cameraFeed);
 	      imshow(windowName4,birdseyeFeed);
-	      imshow(windowName5,HSVthreshold);
+	      imshow(windowName5,occupancyGrid);
 	      imshow(windowName6,fgMaskMOG);
 
 	      char k = (char) cv::waitKey(30); //wait for esc key
@@ -542,7 +608,10 @@ public:
 	      img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::RGB8, objectFeed);
 	      img_bridge.toImageMsg(img_msg); // from cv _bridge to sensor_msgs::Image
 	      rgb_pub_.publish(img_msg); 
-	      //rgb_pub_.publish(cameraFeed->toImageMsg());
+
+	      occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::RGB8, gridDown);
+	      occupancy_bridge.toImageMsg(occupancyGrid_msg);
+	      occupancyGrid_pub.publish(occupancyGrid_msg);
 
 	      counter++;
 	  }
@@ -570,6 +639,10 @@ private:
 	Mat HSVobjects_invert;
 	Mat erodeElement;
 	Mat dilateElement;
+		//Mat occupancyGrid;
+	Mat birdgrayFeed;
+	Mat gridDown;
+	//Mat occupancyGrid;
 	//background subtraction global variables.
 	Mat frame;
 	Mat fgMaskMOG;
@@ -601,9 +674,9 @@ private:
 	Mat dialog_box;
 
 	//pallate controls
-	int lowThreshold = 5;
+	int lowThreshold = 15;
 	int dilateSize = 20;
-	int erodeSize = 3;
+	int erodeSize = 8;
 	int const max_lowThreshold = 255;
 	int const max_dilate = 100;
 	int const max_erode = 100;
@@ -658,9 +731,13 @@ private:
 	int board_n = board_w*board_h;
 	Size board_sz;
 	Size patternsize;
-	Point2f objPts[4], imgPts[4];
+	Point2f objPts[4], imgPts[4], transPts[4];
 	vector<Point2f> corners;
+	vector<Point2f> transCorners;
 	bool patternfound = 0;
+
+	//astar Params
+	int astar_size = 50;
 
 	// tracking/detection toggle status (via space bar)
 	bool tracking_status = FALSE;
@@ -683,6 +760,18 @@ private:
 	Mat background;
 	image_transport::Subscriber rgb_sub_;
 	image_transport::Publisher rgb_pub_;
+	image_transport::Publisher occupancyGrid_pub;
+
+	int checkerboard_height = 0;
+	int checkerboard_PXheight = 0;
+	int checkerboard_width = 0;
+	int checkerboard_PXwidth = 0;
+
+	double height_factor, width_factor;
+	int downsample_factor; 
+
+	int gridDown_height;
+	int gridDown_width;
 };
 
 
