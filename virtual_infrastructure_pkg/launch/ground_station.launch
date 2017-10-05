@@ -30,5 +30,10 @@
         name="vehicle_planner">
   </node>
 
+  <node pkg="virtual_infrastructure_pkg"
+        type="astar_planner"
+        name="astar_planner">
+  </node>
+
 </launch>
 

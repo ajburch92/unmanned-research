@@ -103,7 +103,8 @@ public:
 	}
 
 	void downsampleGrid(Mat grid) {
-		downsample_factor = 10;
+		gridDown = grid;
+		downsample_factor = 2;
 		pyrDown( grid, gridDown, Size( grid.cols/downsample_factor, grid.rows/downsample_factor ) );
 
 		//get size
@@ -366,6 +367,9 @@ public:
 		geometry_msgs::Pose2D goal_pose_msg;
 
 		if (name=="yellow") { // vehicle
+
+			//pca analysis
+
 			vehicle_pose_msg.x = x;
 			vehicle_pose_msg.y = y;
 			vehicle_pose_msg.theta = th;
@@ -450,7 +454,7 @@ public:
 	    		warpPerspective(cameraFeed, birdseyeFeed, Homogeneous, cameraFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 
 	    		cvtColor(birdseyeFeed, birdgrayFeed, COLOR_BGR2GRAY);
-	    		cornerSubPix(birdgrayFeed, transCorners, Size(11,11),Size(-1,-1), TermCriteria( cv::TermCriteria::EPS | cv::TermCriteria::COUNT, 30, 0.1));
+	    		//cornerSubPix(birdgrayFeed, transCorners, Size(11,11),Size(-1,-1), TermCriteria( cv::TermCriteria::EPS | cv::TermCriteria::COUNT, 30, 0.1));
 
 	    		imgPts[0]=corners[0];
 	    		imgPts[1]=corners[board_w-1];
@@ -461,8 +465,8 @@ public:
 	    		//widthDif =  (imgPts[1] - imgPts[0]) - (imgPts[1] - imgPts[0]);
 	    		//checkerboard_PXheight = ((imgPts[0] - imgPts[2]) + (imgPts[1] - imgPts[3]))/2;
 				//heightDif =  (imgPts[1] - imgPts[0]) - (imgPts[1] - imgPts[0]);
-				int widthDif = 0;
-				int heightDif = 0;
+				int widthDif = 1;
+				int heightDif = 1;
 		    	Homogeneous.at<double>(2,2) = birdseyeHeight;						
 		    	ROS_INFO("heightDif = %i" , heightDif);
 		    	warpPerspective(cameraFeed, birdseyeFeed, Homogeneous, cameraFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
@@ -762,10 +766,10 @@ private:
 	image_transport::Publisher rgb_pub_;
 	image_transport::Publisher occupancyGrid_pub;
 
-	int checkerboard_height = 0;
-	int checkerboard_PXheight = 0;
-	int checkerboard_width = 0;
-	int checkerboard_PXwidth = 0;
+	int checkerboard_height = 1;
+	int checkerboard_PXheight = 1;
+	int checkerboard_width = 1;
+	int checkerboard_PXwidth = 1;
 
 	double height_factor, width_factor;
 	int downsample_factor; 

@@ -1,13 +1,7 @@
-<launch>
-  <node name="camera" pkg="usb_cam" type="usb_cam_node" output="screen" >
-    <param name="video_device" value="/dev/video0" />
-    <param name="image_width" value="352" />
-    <param name="image_height" value="288" />
-    <param name="pixel_format" value="yuyv" />
-    <param name="camera_frame_id" value="usb_cam" />
-    <param name="io_method" value="mmap"/>
-  </node>
-
+<launch>  
+  
+  <include file="$(find pointgrey_camera_driver)/launch/camera.launch"/>
+  
   <node name="image_proc" 
         pkg="image_proc" 
         type="image_proc" 
@@ -19,5 +13,20 @@
         name="ground_station_rgb_node">
   </node>
 
+  <node pkg="virtual_infrastructure_pkg"
+        type="vehicle_odom"
+        name="vehicle_odom">
+  </node>
+
+  <node pkg="virtual_infrastructure_pkg"
+        type="vehicle_planner"
+        name="vehicle_planner">
+  </node>
+
+  <node pkg="virtual_infrastructure_pkg"
+        type="astar_planner"
+        name="astar_planner">
+  </node>
+  
 </launch>
 

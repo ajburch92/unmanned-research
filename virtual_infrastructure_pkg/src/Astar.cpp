@@ -37,6 +37,10 @@ int counter=0;
 // if dir==8
 static int dx[dir]={1, 1, 0, -1, -1, -1, 0, 1};
 static int dy[dir]={0, 1, 1, 1, 0, -1, -1, -1};
+int scale_factor = 2;
+const string windowName = "Astar planner";
+
+
 
 // start and finish locations
 int xA, yA, xB, yB;
@@ -227,7 +231,6 @@ string pathFind( const int & xStart, const int & yStart,
 }
 
 void upsampleGrid () {
-	int scale_factor = 10;
 	pyrUp( gridDown, occupancyGrid, Size( gridDown.cols*scale_factor, gridDown.rows*scale_factor) );
 }
 
@@ -311,6 +314,15 @@ void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg)
 {
     xB  = goal_pose_msg->x;
     yB = goal_pose_msg ->y;
+
+    //translate to downsampled coordinates
+    xB = xB / scale_factor;
+    yB = yB / scale_factor;
+
+    //draw points on image
+    circle(gridDown, Point(xB,yB), 9, Scalar(255,0,0),3);
+
+
     ROS_INFO("goalCallback: ( %i , %i )",xB,yB);
 }
 
@@ -352,6 +364,7 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
         grid[n/2][y]=1;
     }
 
+    imshow(windowName,gridDown);
 
     counter++;
 }
