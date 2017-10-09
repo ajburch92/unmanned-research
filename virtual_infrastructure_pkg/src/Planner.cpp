@@ -2,7 +2,7 @@
 #include "nav_msgs/Odometry.h"
 #include <std_msgs/Float64.h>
 //#include "vehicle_pose.h"
-//#include "goal_pose.h"
+//#include "wp_pose.h"
 #include <geometry_msgs/Pose2D.h>
 #include <stdio.h>
 #include <iostream>
@@ -17,7 +17,7 @@ using namespace std;
 ros::Publisher target_angle_pub;
 ros::Publisher target_speed_pub;
 ros::Subscriber sub_vehicle;
-ros::Subscriber sub_goal;
+ros::Subscriber sub_wp;
 
 double radius;
 vector <double> p_i;
@@ -42,13 +42,13 @@ double yi;
 double distance_to_target, target_speed;
 double angle_error, target_angle;
 
-double x_vehicle, y_vehicle, x_goal, y_goal;
+double x_vehicle, y_vehicle, x_wp, y_wp;
 
 
 
 void update_target_speed()
 {
-    distance_to_target = sqrt(pow(x_vehicle - x_goal, 2) + pow(y_vehicle - y_goal, 2));
+    distance_to_target = sqrt(pow(x_vehicle - x_wp, 2) + pow(y_vehicle - y_wp, 2));
     std_msgs::Float64 target_speed_msg;
     
     if (distance_to_target < 100) { // meter?? NEED TO CONVERT FROM PIXELS TO METERS
@@ -75,8 +75,8 @@ void update_target_angle()
     // init
     p_e[0] = x_vehicle;
     p_e[1] = y_vehicle;
-    p_v[0] = x_goal;
-    p_v[1] = y_goal;
+    p_v[0] = x_wp;
+    p_v[1] = y_wp;
     // p_ie
     transform(p_e.begin(), p_e.end(), p_i.begin(), p_ie.begin(), minus<double>());
     // p_iv
@@ -130,11 +130,11 @@ void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg)
 
 }
 
-void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg) 
+void waypointCallback (const geometry_msgs::Pose2D::ConstPtr& waypoint_pose_msg) 
 {
-    x_goal  = goal_pose_msg->x;
-    y_goal = goal_pose_msg ->y;
-    ROS_INFO("goalCallback: ( %f , %f )",x_goal,y_goal);
+    x_wp  = waypoint_pose_msg->x;
+    y_wp = waypoint_pose_msg ->y;
+    ROS_INFO("waypointCallback: ( %f , %f )",x_wp,y_wp);
     //update_target_speed();
     //update_target_angle();
 }
@@ -144,8 +144,8 @@ void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg)
 int main(int argc, char **argv)
 {
   pi_bool = 0;  
-  x_goal = 0;
-  y_goal = 0;
+  x_wp = 0;
+  y_wp = 0;
   x_vehicle = 0;
   y_vehicle = 0;
   p_e.resize(2);
@@ -163,7 +163,7 @@ int main(int argc, char **argv)
   ros::NodeHandle n;
 
   sub_vehicle = n.subscribe("/vehicle_pose",20, &vehicleCallback);
-  sub_goal = n.subscribe("/goal_pose",20, &goalCallback);
+  sub_wp = n.subscribe("/wp_pose",20, &waypointCallback);
 
   target_angle_pub = n.advertise<std_msgs::Float64>("/target_angle",2);
   target_speed_pub = n.advertise<std_msgs::Float64>("/target_speed",2);

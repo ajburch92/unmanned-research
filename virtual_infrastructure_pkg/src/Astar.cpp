@@ -23,8 +23,8 @@
 using namespace std;
 using namespace cv;
 
-const int n=128; // horizontal size of the grid  CAN I CHECK CONFIG FILE FOR THIS VALUE
-const int m=96; // vertical size size of the grid
+const int n=16; // horizontal size of the grid  CAN I CHECK CONFIG FILE FOR THIS VALUE
+const int m=12; // vertical size size of the grid
 static int grid[n][m];
 static int closed_nodes_grid[n][m]; // grid of closed (tried-out) nodes
 static int open_nodes_grid[n][m]; // grid of open (not-yet-tried) nodes
@@ -38,12 +38,16 @@ int counter=0;
 static int dx[dir]={1, 1, 0, -1, -1, -1, 0, 1};
 static int dy[dir]={0, 1, 1, 1, 0, -1, -1, -1};
 int scale_factor = 2;
-const string windowName = "Astar planner";
+const string astarwindowName = "Astar planner";
 
+ros::Publisher wp_pub;
 
 
 // start and finish locations
-int xA, yA, xB, yB;
+int xA = 0;
+int yA = 0;
+int xB = 128;
+int yB =  96;
 
 Mat gridDown;
 Mat occupancyGrid;
@@ -257,11 +261,12 @@ void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg)
     //ROS_INFO("Route: %s ", route);
 
     // follow the route on the grid and display it 
+    int j; char c;
+	int x=xA;
+	int y=yA;
     if(route.length()>0)
     {
-        int j; char c;
-        int x=xA;
-        int y=yA;
+
         grid[x][y]=2;
         for(int i=0;i<route.length();i++)
         {
@@ -304,23 +309,42 @@ void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg)
         }
     }
 
+    // get next step in route
+    c =route.at(0);
+    j=atoi(&c); 
+    x=x+dx[j];
+    y=y+dy[j];
+
+    geometry_msgs::Pose2D wp_pose_msg;
+
+	wp_pose_msg.x = x;
+	wp_pose_msg.y = y;
+	ROS_INFO("wp pose: ( %i , %i ) ",x,y);
+	wp_pub.publish(wp_pose_msg); 
+
     // convert route to real world coordinates
+/*    unsampleGrid();
     // draw route on output frame
+    //draw points on image
+    circle(gridDown, Point(xB,yB), 9, Scalar(0,0,255),3);
+    circle(gridDown, Point(xB,yB), 9, Scalar(255,0,0),3);*/
+    // publish scaled waypoints to 
     // publish waypoints to low level controller 
+
 
 }
 
 void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg) 
 {
-    xB  = goal_pose_msg->x;
-    yB = goal_pose_msg ->y;
+    double xtemp, ytemp;
+    xtemp = goal_pose_msg->x;
+    ytemp = goal_pose_msg ->y;
+    xtemp = xtemp / scale_factor;
+    ytemp = ytemp / scale_factor;
+    xB  = (int)xtemp;
+    yB = (int)xtemp;
 
     //translate to downsampled coordinates
-    xB = xB / scale_factor;
-    yB = yB / scale_factor;
-
-    //draw points on image
-    circle(gridDown, Point(xB,yB), 9, Scalar(255,0,0),3);
 
 
     ROS_INFO("goalCallback: ( %i , %i )",xB,yB);
@@ -336,7 +360,8 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
 	
 	try
 	{
-		occupancyGrid_ptr  = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::BGR8);
+		occupancyGrid_ptr  = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::MONO8);
+		ROS_INFO("cv_bridge msg read");
 	}
 	catch (cv_bridge::Exception& e)
 	{
@@ -344,16 +369,15 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
 		return;
 	}
 
-
-    // convert to grid size
-    // downsample grid to size
-    // fill matrix  with object positions
-
-
     std_msgs::Header header; //empty header
     header.seq = counter; // user defined counter
     header.stamp = ros::Time::now(); // time
     gridDown = occupancyGrid_ptr -> image;
+
+
+    // convert to grid size
+    // downsample grid to size
+    // fill matrix  with object positions
 
     for(int x=n/8;x<n*7/8;x++)
     {
@@ -363,8 +387,13 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
     {
         grid[n/2][y]=1;
     }
+    
+    //draw points on image
+    circle(gridDown, Point(xB,yB), 9, Scalar(255,0,0),3);
 
-    imshow(windowName,gridDown);
+    imshow(astarwindowName,gridDown);
+
+
 
     counter++;
 }
@@ -394,8 +423,8 @@ int main(int argc, char **argv)
     // subscribe to output frame for path visualization
 
     // publish topics for the output visualization and for the next waypoint for the low level controller.
-    ros::Publisher target_angle_pub = node.advertise<std_msgs::Float64>("/target_angle",2);
-    ros::Publisher target_speed_pub = node.advertise<std_msgs::Float64>("/target_speed",2);
+
+	wp_pub = node.advertise<geometry_msgs::Pose2D>("wp_pose",2);
     
     // random starting position generation
 /*    switch(rand()%8)

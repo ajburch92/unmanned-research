@@ -357,8 +357,8 @@ public:
 		  //draw object location on screen
 
 		//if vehicle, publish x,y,th .... if goal, publish x,y
-		x = (double)x_obj;
-		y = (double)y_obj;
+		x = double(x_obj);
+		y = double(y_obj);
 		th = atan2(y,x);
 
 		//virtual_infrastructure_pkg::vehicle_pose vehicle_pose_msg;
@@ -379,7 +379,7 @@ public:
 		else if (name=="blue") { // goal
 			goal_pose_msg.x = x;
 			goal_pose_msg.y = y;
-			ROS_INFO("goal pose: ( %f , %f ) ",x,y);
+			ROS_INFO("goal pose: ( %i , %i ) ",x_obj,y_obj);
 			rgb_goal_pub.publish(goal_pose_msg); 
 		} else {};
 
@@ -480,16 +480,21 @@ public:
 		    		warpPerspective(cameraFeed, birdseyeFeed, Homogeneous, cameraFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 			}
 
-	    	circle(cameraFeed, imgPts[0], 9, Scalar(255,0,0),3);
+/*	    	circle(cameraFeed, imgPts[0], 9, Scalar(255,0,0),3);
 	    	circle(cameraFeed, imgPts[1], 9, Scalar(0,255,0),3);
 	    	circle(cameraFeed, imgPts[2], 9, Scalar(0,0,255),3);
-	    	circle(cameraFeed, imgPts[3], 9, Scalar(0,255,255),3);
+	    	circle(cameraFeed, imgPts[3], 9, Scalar(0,255,255),3);*/
+
+	    	circle(birdseyeFeed, imgPts[0], 9, Scalar(255,0,0),3);
+	    	circle(birdseyeFeed, imgPts[1], 9, Scalar(0,255,0),3);
+	    	circle(birdseyeFeed, imgPts[2], 9, Scalar(0,0,255),3);
+	    	circle(birdseyeFeed, imgPts[3], 9, Scalar(0,255,255),3);
 
 	      // Background subtraction
-	    	pMOG->operator()(cameraFeed,fgMaskMOG);
+	    	pMOG->operator()(birdseyeFeed,fgMaskMOG);
 
 	      // Show general color detection on HSV window
-	    	cvtColor(cameraFeed,HSV,COLOR_BGR2HSV);
+	    	cvtColor(birdseyeFeed,HSV,COLOR_BGR2HSV);
 	    	createHSVTrackbars();
 	    	inRange(HSV,Scalar(H_MIN,S_MIN,V_MIN),Scalar(H_MAX,S_MAX,V_MAX),HSVthreshold);
 
@@ -498,7 +503,7 @@ public:
 
 	      // Apply object feed mask
 	    	objectFeed = Scalar::all(0);
-	    	cameraFeed.copyTo(objectFeed,fgMaskMOG);
+	    	birdseyeFeed.copyTo(objectFeed,fgMaskMOG);
 
 	      // convert masked object feed to HSV color space for classification
 	    	cvtColor(objectFeed,HSV,COLOR_BGR2HSV);
@@ -540,19 +545,20 @@ public:
 	    		//detectObjects(GREENthreshold,objectFeed,"green");
 	    		detectObjects(YELLOWthreshold,objectFeed,"yellow");
 	    		//detectObjects(REDthreshold,objectFeed,"red");
-	    		putText(cameraFeed,"DETECTING OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
+	    		putText(birdseyeFeed,"DETECTING OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
 
 	    	} 
 	      else // tracking mode turned on
 	      {
 	      	// for VISUALIZATION???
-	      	detectObjects(cameraFeed,objectFeed, " ");
+
+	      	detectObjects(objectFeed_thresh,objectFeed, " ");
 
 	      	trackObjects(BLUEthreshold,objectFeed,objects_blue,"blue");
 	      	//trackObjects(GREENthreshold,objectFeed,objects_green,"green");
 	      	trackObjects(YELLOWthreshold,objectFeed,objects_yellow,"yellow");
 	      	//trackObjects(REDthreshold,objectFeed,objects_red,"red");
-	      	putText(cameraFeed,"TRACKING OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
+	      	putText(birdseyeFeed,"TRACKING OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
 
 	      }
 
@@ -573,12 +579,12 @@ public:
 	      createTrackbar( "Birds Eye Height", trackbar_window_name, &birdseyeHeight, max_birdseye+1);
 
 	      // drawCheckerboardCorners
-	      drawChessboardCorners(cameraFeed, patternsize, Mat(corners), patternfound);      
+	      drawChessboardCorners(birdseyeFeed, patternsize, Mat(corners), patternfound);      
 
 	      // Show processed image
 	      imshow(windowName2, HSVobjects);
 	      imshow(windowName3,objectFeed);
-	      imshow(windowName,cameraFeed);
+	      imshow(windowName,birdseyeFeed);
 	      imshow(windowName4,birdseyeFeed);
 	      imshow(windowName5,occupancyGrid);
 	      imshow(windowName6,fgMaskMOG);
@@ -595,11 +601,6 @@ public:
 	      	else
 	      	{
 	      		tracking_status = TRUE;
-	      		//objects.clear();
-	      		//objects.insert(objects.end(), objects_blue.begin(), objects_blue.end());
-	      		//objects.insert(objects.end(), objects_green.begin(), objects_green.end());
-	      		//objects.insert(objects.end(), objects_yellow.begin(), objects_yellow.end());
-	      		//objects.insert(objects.end(), objects_red.begin(), objects_red.end());
 	      		counter = 0;
 	      	}
 	      } 
@@ -609,11 +610,11 @@ public:
 	      }
 
 	      // Output modified video stream
-	      img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::RGB8, objectFeed);
+	      img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, objectFeed);
 	      img_bridge.toImageMsg(img_msg); // from cv _bridge to sensor_msgs::Image
 	      rgb_pub_.publish(img_msg); 
 
-	      occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::RGB8, gridDown);
+	      occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, gridDown);
 	      occupancy_bridge.toImageMsg(occupancyGrid_msg);
 	      occupancyGrid_pub.publish(occupancyGrid_msg);
 
