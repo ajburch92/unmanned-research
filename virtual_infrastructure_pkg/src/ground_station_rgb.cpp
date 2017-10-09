@@ -124,13 +124,13 @@ public:
 
 		Scalar white = Scalar(255,255,255);
 		if (contours.size() > 0) {
-			drawContours(frame,contours,-1,white,3,8,hierarchy);
+			drawContours(frame,contours,-1,white,1,8,hierarchy);
 		}
 		for(int i =0; i<theObjects.size(); i++)
 	  	{ //for each object
 	    //draw current position
 			try {
-				drawContours(frame,contours,i,theObjects.at(i).getColor(),3,8,hierarchy);
+				drawContours(frame,contours,i,theObjects.at(i).getColor(),1,8,hierarchy);
 			} catch (Exception& e) {}
 	  		circle(frame,Point(theObjects.at(i).getXPos(MEMORY_SIZE-1),theObjects.at(i).getYPos(MEMORY_SIZE-1)),5,Scalar(0,0,255));
 	  		putText(frame,intToString(theObjects.at(i).getXPos(MEMORY_SIZE-1))+ " , " + intToString(theObjects.at(i).getYPos(MEMORY_SIZE-1)),cv::Point(theObjects.at(i).getXPos(MEMORY_SIZE-1),theObjects.at(i).getYPos(MEMORY_SIZE-1)+20),1,1,Scalar(0,255,0));
@@ -138,7 +138,7 @@ public:
 	    	//draw past positions if tracking
 	  		if (tracking_status == TRUE) {
 	  			for (int j = 1; j<(n-1); j++) { 
-	  				line(frame,Point(theObjects.at(i).getXPos(MEMORY_SIZE-j),theObjects.at(i).getYPos(MEMORY_SIZE - j)),Point(theObjects.at(i).getXPos(MEMORY_SIZE-(j-1)),theObjects.at(i).getYPos(MEMORY_SIZE - (j-1))),theObjects.at(i).getColor(),2);
+	  				//line(frame,Point(theObjects.at(i).getXPos(MEMORY_SIZE-j),theObjects.at(i).getYPos(MEMORY_SIZE - j)),Point(theObjects.at(i).getXPos(MEMORY_SIZE-(j-1)),theObjects.at(i).getYPos(MEMORY_SIZE - (j-1))),theObjects.at(i).getColor(),1);
 	  			}
 	  		}
 	    }
@@ -162,6 +162,59 @@ public:
 
 	}
 
+	void drawAxis(Mat& img, Point p, Point q, Scalar colour, const float scale = 2) 
+	{
+	    double angle;
+	    double hypotenuse;
+	    angle = atan2((double) p.y - q.y, (double) p.x - q.x); // angle in radians
+	    hypotenuse = sqrt((double) (p.y - q.y) * (p.y - q.y) + (p.x - q.x) * (p.x - q.x));
+	    //    double degrees = angle * 180 / CV_PI; // convert radians to degrees (0-180 range)
+	    //    cout << "Degrees: " << abs(degrees - 180) << endl; // angle in 0-360 degrees range
+	    // Here we lengthen the arrow by a factor of scale
+	    q.x = (int) (p.x - scale * hypotenuse * cos(angle));
+	    q.y = (int) (p.y - scale * hypotenuse * sin(angle));
+	    line(img, p, q, colour, 2, CV_AA);
+	    // create the arrow hooks
+	    p.x = (int) (q.x + 9 * cos(angle + CV_PI / 4));
+	    p.y = (int) (q.y + 9 * sin(angle + CV_PI / 4));
+	    line(img, p, q, colour, 1, CV_AA);
+	    p.x = (int) (q.x + 9 * cos(angle - CV_PI / 4));
+	    p.y = (int) (q.y + 9 * sin(angle - CV_PI / 4));
+	    line(img, p, q, colour, 2, CV_AA);
+	}
+
+	double pcaOrientation(const vector<Point> &pts, Mat &objectFeed)
+	{
+		//Construct a buffer used by the pca analysis
+	    int sz = static_cast<int> (pts.size());
+	    Mat data_pts = Mat(sz, 2, CV_64FC1);
+	    for (int i = 0; i < data_pts.rows; ++i) {
+	        data_pts.at<double>(i, 0) = pts[i].x;
+	        data_pts.at<double>(i, 1) = pts[i].y;
+	    }
+	    //Perform PCA analysis
+	    PCA pca_analysis(data_pts, Mat(), CV_PCA_DATA_AS_ROW);
+	    //Store the center of the object
+	    Point cntr = Point(static_cast<int> (pca_analysis.mean.at<double>(0, 0)),
+	            static_cast<int> (pca_analysis.mean.at<double>(0, 1)));
+	    //Store the eigenvalues and eigenvectors
+	    vector<Point2d> eigen_vecs(2);
+	    vector<double> eigen_val(2);
+	    for (int i = 0; i < 2; ++i) {
+	        eigen_vecs[i] = Point2d(pca_analysis.eigenvectors.at<double>(i, 0),
+	                pca_analysis.eigenvectors.at<double>(i, 1));
+	        eigen_val[i] = pca_analysis.eigenvalues.at<double>(0, i);
+	    }
+	    // Draw the principal components
+	    circle(objectFeed, cntr, 3, Scalar(255, 0, 255), 2);
+	    Point p1 = cntr + 0.02 * Point(static_cast<int> (eigen_vecs[0].x * eigen_val[0]), static_cast<int> (eigen_vecs[0].y * eigen_val[0]));
+	    Point p2 = cntr - 0.02 * Point(static_cast<int> (eigen_vecs[1].x * eigen_val[1]), static_cast<int> (eigen_vecs[1].y * eigen_val[1]));
+	    drawAxis(objectFeed, cntr, p1, Scalar(0, 255, 0), 1);
+	    drawAxis(objectFeed, cntr, p2, Scalar(255, 255, 0), 5);
+	    double angle = atan2(eigen_vecs[0].y, eigen_vecs[0].x); // orientation in radians
+		return angle;
+	} 
+
 	void morphologicalOps (Mat &thresh, int erodeS, int dilateS) 
 	{
 		GaussianBlur(thresh,thresh,Size(blurSize,blurSize),sigmaSize,sigmaSize);
@@ -181,7 +234,7 @@ public:
 		vector< vector<Point> > contours_temp; 
 		vector<Vec4i> hierarchy_temp;          
 		vector <Object> objects_temp; 
-
+		double max_contour_index;
 		Mat temp;
 
 	  // cp to temporary
@@ -199,7 +252,8 @@ public:
 	  	if(numObjects<MAX_NUM_OBJECTS)
 	  	{
 	      // find largest object
-	  		int index = largestObject(contours); 
+	  		int index = largestObject(contours_temp); 
+	  		max_contour_index = double(index);
 	      //for (int index = 0; index >= 0; index = hierarchy_temp[index][0]) //for each object
 	      //{
 	        Moments moment = moments((cv::Mat)contours_temp[index]); //moments method
@@ -246,6 +300,8 @@ public:
 	  else if (name=="red") {
 		objects_red = objects_temp;
 	  }
+
+	  //pcaOrientation(contours[max_contour_index],frame);
       //clear temporary vectors
 	  contours_temp.clear();
 	  hierarchy_temp.clear();
@@ -271,12 +327,14 @@ public:
 	  	float max_dist = 400; //pixels
 	  	vector<float> dist;
 	  	double x,y,th;
+	  	double max_contour_index;
 
 	  if (hierarchy.size() > 0) {
 	  	num_objects = hierarchy.size();
 
 	  		//find largest object
 	  		int index = largestObject(contours); 
+	  		max_contour_index = double(index);
 
 	      //for (int index = 0; index < contours.size(); index++)
 	      //{
@@ -312,6 +370,9 @@ public:
 
 	          		objects.at(minPos).setXPos(x_obj);
 	          		objects.at(minPos).setYPos(y_obj);
+
+
+
 	          	} else { // object too far away - project current position
 	          		int i=0;
 	          		x_obj = objects.at(i).getXPos(MEMORY_SIZE-1); // retrieve past object position.
@@ -325,7 +386,11 @@ public:
 	               	objects.at(i).setXPos(x_obj);
 			  		objects.at(i).setYPos(y_obj);
 	             	//objects.push_back(object_temp); // only track desired number of objects for right now, match to nearest object, ignore rest.
+	          	
 	          	}
+
+
+
 	          	dist.clear();
 	          	minPos = 0;
 	 
@@ -359,7 +424,7 @@ public:
 		//if vehicle, publish x,y,th .... if goal, publish x,y
 		x = double(x_obj);
 		y = double(y_obj);
-		th = atan2(y,x);
+		//th = atan2(y,x);
 
 		//virtual_infrastructure_pkg::vehicle_pose vehicle_pose_msg;
 		//virtual_infrastructure_pkg::goal_pose goal_pose_msg;
@@ -372,7 +437,7 @@ public:
 
 			vehicle_pose_msg.x = x;
 			vehicle_pose_msg.y = y;
-			vehicle_pose_msg.theta = th;
+			vehicle_pose_msg.theta = pcaOrientation(contours[max_contour_index],frame);
 			ROS_INFO("vehicle pose: ( %f , %f ) : th = %f ",x,y,th);
 			rgb_vehicle_pub.publish(vehicle_pose_msg); 
 		}
@@ -584,7 +649,7 @@ public:
 	      // Show processed image
 	      imshow(windowName2, HSVobjects);
 	      imshow(windowName3,objectFeed);
-	      imshow(windowName,birdseyeFeed);
+	      imshow(windowName,HSVthreshold);
 	      imshow(windowName4,birdseyeFeed);
 	      imshow(windowName5,occupancyGrid);
 	      imshow(windowName6,fgMaskMOG);
@@ -664,7 +729,7 @@ private:
 	//max number of objects to be detected in frame
 	const int MAX_NUM_OBJECTS=10;
 	//minimum and maximum object area
-	const int MIN_OBJECT_AREA = 20*20;
+	const int MIN_OBJECT_AREA = 10*10;
 
 	//names of feed windows
 	const string windowName = "Raw Feed";
@@ -680,7 +745,7 @@ private:
 
 	//pallate controls
 	int lowThreshold = 15;
-	int dilateSize = 20;
+	int dilateSize = 10;
 	int erodeSize = 8;
 	int const max_lowThreshold = 255;
 	int const max_dilate = 100;
@@ -704,11 +769,11 @@ private:
 	int V_GMAX = 180;
 
 	int H_YMIN = 0;
-	int H_YMAX = 46;
-	int S_YMIN = 108;
-	int S_YMAX = 210;
-	int V_YMIN = 190;
-	int V_YMAX = 247;
+	int H_YMAX = 55;
+	int S_YMIN = 100;
+	int S_YMAX = 220;
+	int V_YMIN = 180;
+	int V_YMAX = 257;
 
 	int H_RMIN = 75;
 	int H_RMAX = 255;
@@ -727,7 +792,7 @@ private:
 	//Distortion parameters
 	int distortionAngle = 0;
 	int const max_distortion = 180;
-	int birdseyeHeight = 10;
+	int birdseyeHeight = 28;
 	int const max_birdseye = 100;
 
 	//checkerboard ... or chess, board parameters
