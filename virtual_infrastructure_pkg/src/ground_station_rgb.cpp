@@ -104,8 +104,10 @@ public:
 
 	void downsampleGrid(Mat grid) {
 		gridDown = grid;
-		downsample_factor = 2;
-		pyrDown( grid, gridDown, Size( grid.cols/downsample_factor, grid.rows/downsample_factor ) );
+		downsample_factor = 4;
+		Size size(241,322);
+		resize(grid,gridDown,size);
+		//pyrDown( grid, gridDown, Size( grid.cols/downsample_factor, grid.rows/downsample_factor ) );
 
 		//get size
 		gridDown_height = gridDown.rows ;

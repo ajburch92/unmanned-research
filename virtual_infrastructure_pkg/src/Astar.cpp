@@ -23,8 +23,11 @@
 using namespace std;
 using namespace cv;
 
-const int n=16; // horizontal size of the grid  CAN I CHECK CONFIG FILE FOR THIS VALUE
-const int m=12; // vertical size size of the grid
+//m and n should start as camera resolution size
+int scale_factor = 4;
+//res initially 1288x964
+const int n=322; // horizontal size of the grid  CAN I CHECK CONFIG FILE FOR THIS VALUE
+const int m=241; // vertical size size of the grid
 static int grid[n][m];
 static int closed_nodes_grid[n][m]; // grid of closed (tried-out) nodes
 static int open_nodes_grid[n][m]; // grid of open (not-yet-tried) nodes
@@ -37,20 +40,20 @@ int counter=0;
 // if dir==8
 static int dx[dir]={1, 1, 0, -1, -1, -1, 0, 1};
 static int dy[dir]={0, 1, 1, 1, 0, -1, -1, -1};
-int scale_factor = 2;
 const string astarwindowName = "Astar planner";
-
+image_transport::Publisher path_pub;
 ros::Publisher wp_pub;
 
 
 // start and finish locations
 int xA = 0;
 int yA = 0;
-int xB = 128;
-int yB =  96;
+int xB = 1;
+int yB =  1;
 
-Mat gridDown;
-Mat occupancyGrid;
+Mat gridDown(m,n,CV_8UC1,Scalar(0));
+Mat pathDown(m,n,CV_8UC1,Scalar(0));
+Mat occupancyGrid(n,m,CV_8UC1,Scalar(0));
 
 class node
 {
@@ -239,113 +242,37 @@ void upsampleGrid () {
 }
 
 void drawPath()
-{
-
+{    
+    //draw points on image
+    circle(gridDown, Point(xB,yB), 9, Scalar(255,0,0),3);
 }
 
 void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
 {
-    xA  = vehicle_pose_msg->x;
-    yA = vehicle_pose_msg->y;
+	double xtemp, ytemp;
+    xtemp = vehicle_pose_msg->x;
+    ytemp = vehicle_pose_msg ->y;
+    //translate to downsampled coordinates
+    xtemp = xtemp / scale_factor;
+    ytemp = ytemp / scale_factor;
+    xA  = (int)xtemp;
+    yA = (int)xtemp;
+
     ROS_INFO("vehicleCallback: ( %i , %i )",xA,yA);
-    clock_t start = clock();
-    string route=pathFind(xA, yA, xB, yB);
-
-    if(route=="") ROS_INFO("An empty route generated!");
-
-    // get cpu time
-    clock_t end = clock();
-    double time_elapsed = double(end - start);
-
-    ROS_INFO("Time to calculate the route (ms): %f" , time_elapsed);
-    //ROS_INFO("Route: %s ", route);
-
-    // follow the route on the grid and display it 
-    int j; char c;
-	int x=xA;
-	int y=yA;
-    if(route.length()>0)
-    {
-
-        grid[x][y]=2;
-        for(int i=0;i<route.length();i++)
-        {
-            c =route.at(i);
-            j=atoi(&c); 
-            x=x+dx[j];
-            y=y+dy[j];
-            grid[x][y]=3;
-        }
-        grid[x][y]=4;
-    
-        // display the grid with the route
-        //write to output image topic
-        for(int y=0;y<m;y++)
-        {
-            for(int x=0;x<n;x++)
-            {
-                if(grid[x][y]==0)
-                {
-                    //cout<<".";
-                }
-                else if(grid[x][y]==1)
-                {
-                    //cout<<"O"; //obstacle
-                }
-                else if(grid[x][y]==2)
-                {
-                    //cout<<"S"; //start
-                }
-                else if(grid[x][y]==3)
-                {
-                    //cout<<"R"; //route
-                }
-                else if(grid[x][y]==4)
-                {
-                    //cout<<"F"; //finish
-                }
-            //cout<<endl;
-            }
-        }
-    }
-
-    // get next step in route
-    c =route.at(0);
-    j=atoi(&c); 
-    x=x+dx[j];
-    y=y+dy[j];
-
-    geometry_msgs::Pose2D wp_pose_msg;
-
-	wp_pose_msg.x = x;
-	wp_pose_msg.y = y;
-	ROS_INFO("wp pose: ( %i , %i ) ",x,y);
-	wp_pub.publish(wp_pose_msg); 
-
-    // convert route to real world coordinates
-/*    unsampleGrid();
-    // draw route on output frame
-    //draw points on image
-    circle(gridDown, Point(xB,yB), 9, Scalar(0,0,255),3);
-    circle(gridDown, Point(xB,yB), 9, Scalar(255,0,0),3);*/
-    // publish scaled waypoints to 
-    // publish waypoints to low level controller 
-
-
 }
+
+
 
 void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg) 
 {
     double xtemp, ytemp;
     xtemp = goal_pose_msg->x;
     ytemp = goal_pose_msg ->y;
+    //translate to downsampled coordinates
     xtemp = xtemp / scale_factor;
     ytemp = ytemp / scale_factor;
     xB  = (int)xtemp;
     yB = (int)xtemp;
-
-    //translate to downsampled coordinates
-
 
     ROS_INFO("goalCallback: ( %i , %i )",xB,yB);
 }
@@ -353,9 +280,6 @@ void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg)
 void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg) 
 {
     // fillout the grid matrix with a '+' pattern
-	cv_bridge::CvImage img_bridge;
-	sensor_msgs::Image img_msg;
-	sensor_msgs::Image occupancyGrid_msg;
 	cv_bridge::CvImagePtr occupancyGrid_ptr;
 	
 	try
@@ -369,39 +293,31 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
 		return;
 	}
 
-    std_msgs::Header header; //empty header
-    header.seq = counter; // user defined counter
-    header.stamp = ros::Time::now(); // time
     gridDown = occupancyGrid_ptr -> image;
 
+    // convert to grid size - ALREADY DOWN SAMPLED, JUST NEED TO INCREASE RESOLUTION UPON PUBLISHING
 
-    // convert to grid size
-    // downsample grid to size
-    // fill matrix  with object positions
-
-    for(int x=n/8;x<n*7/8;x++)
+    // fill matrix grid same size with object positions
+    for (int x = 1; x <= n; x++)
     {
-        grid[x][m/2]=1;
-    }
-    for(int y=m/8;y<m*7/8;y++)
-    {
-        grid[n/2][y]=1;
-    }
-    
-    //draw points on image
-    circle(gridDown, Point(xB,yB), 9, Scalar(255,0,0),3);
+		for (int y = 1; y<=m; y++)
+		{
+			int pix = (int)gridDown.at<uchar>(y,x);
+			if (pix > 0) // obstacle
+			{
+				grid[x][y] = 1;
+			} else {
+				grid[x][y] = 0;
+			}
+		}
+	}
 
-    imshow(astarwindowName,gridDown);
-
-
-
-    counter++;
 }
 
 
 int main(int argc, char **argv)
 {
-	
+
     srand(time(NULL));
 
     // create empty grid
@@ -418,28 +334,116 @@ int main(int argc, char **argv)
 	image_transport::Subscriber sub_occupancyGrid = it_astar.subscribe("/occupancyGrid",1, &occupancyGridCallback); // use image_rect
     ros::Subscriber sub_vehicle = node.subscribe("/vehicle_pose",20, &vehicleCallback);
     ros::Subscriber sub_goal = node.subscribe("/goal_pose",20, &goalCallback);
-    // subscribe to occupancy grid with obstacles
-
-    // subscribe to output frame for path visualization
 
     // publish topics for the output visualization and for the next waypoint for the low level controller.
-
+    path_pub = it_astar.advertise("/pathGrid",1);
 	wp_pub = node.advertise<geometry_msgs::Pose2D>("wp_pose",2);
     
-    // random starting position generation
-/*    switch(rand()%8)
-    {
-        case 0: xA=0;yA=0;xB=n-1;yB=m-1; break;
-        case 1: xA=0;yA=m-1;xB=n-1;yB=0; break;
-        case 2: xA=n/2-1;yA=m/2-1;xB=n/2+1;yB=m/2+1; break;
-        case 3: xA=n/2-1;yA=m/2+1;xB=n/2+1;yB=m/2-1; break;
-        case 4: xA=n/2-1;yA=0;xB=n/2+1;yB=m-1; break;
-        case 5: xA=n/2+1;yA=m-1;xB=n/2-1;yB=0; break;
-        case 6: xA=0;yA=m/2-1;xB=n-1;yB=m/2+1; break;
-        case 7: xA=n-1;yA=m/2+1;xB=0;yB=m/2-1; break;
-    }*/ 
+    ROS_INFO("Start path planning operations");
 
-    ros::spin();
+    //enter while loop performing path planning operations
+    while (ros::ok())
+	{
+	    std_msgs::Header header; //empty header
+		header.seq = counter; // user defined counter
+		header.stamp = ros::Time::now(); // time
+	    cv_bridge::CvImage occupancy_bridge;
+		sensor_msgs::Image occupancyGrid_msg;
 
+	    clock_t start = clock();
+	    string route=pathFind(xA, yA, xB, yB);
+	    if(route=="") ROS_INFO("An empty route generated!");
+	    // get cpu time
+	    clock_t end = clock();
+	    double time_elapsed = double(end - start);
+	    ROS_INFO("Time to calculate the route (ms): %f" , time_elapsed);
+
+	    // follow the route on the grid and display it 
+	    int j; char c;
+		int x=xA;
+		int y=yA;
+		int x_prev;
+		int y_prev;
+	    if(route.length()>0)
+	    {
+
+	        grid[x][y]=2;
+	        for(int i=0;i<route.length();i++)
+	        {
+	            c =route.at(i);
+	            j=atoi(&c); 
+	            x=x+dx[j];
+	            y=y+dy[j];
+	            grid[x][y]=3;
+	            // draw path
+	            if (i>0) {
+	            	line(occupancyGrid,Point(x_prev,y_prev),Point(x,y),(255,0,0),2);
+	            }
+	            x_prev = x;
+	            y_prev = y;
+	        }
+	        grid[x][y]=4;
+	    
+	        // display the grid with the route
+	        //write to output image topic
+	        for(int y=0;y<m;y++)
+	        {
+	            for(int x=0;x<n;x++)
+	            {
+	                if(grid[x][y]==0)
+	                {
+	                    //cout<<"."; // open space, keep black
+	                }
+	                else if(grid[x][y]==1)
+	                {
+	                    //cout<<"O"; //obstacle
+	                    occupancyGrid.at<uchar>(cv::Point(y,x)) = 255;
+	                }
+	                else if(grid[x][y]==2)
+	                {
+	                    //cout<<"S"; //start
+	                    circle(occupancyGrid, Point(x,y), 9, 255,3);
+
+	                }
+	                else if(grid[x][y]==3)
+	                {
+	                    circle(occupancyGrid, Point(x,y), 9,255,1);
+	                }
+	                else if(grid[x][y]==4)
+	                {
+	                    //cout<<"F"; //finish
+	                    circle(occupancyGrid, Point(x,y), 9,255,3);
+	                }
+	            //cout<<endl;
+	            }
+	        }
+	    }
+
+	    // get next step in route
+	    c =route.at(0);
+	    j=atoi(&c); 
+	    x=x+dx[j];
+	    y=y+dy[j];
+
+	    geometry_msgs::Pose2D wp_pose_msg;
+
+	    //scale waypoints for rgb thread
+		wp_pose_msg.x = x*scale_factor;
+		wp_pose_msg.y = y*scale_factor;
+		ROS_INFO("wp pose: ( %i , %i ) ",x,y);
+		wp_pub.publish(wp_pose_msg); 
+
+
+	    // increase occupancy grid resolution
+	    
+	    occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, occupancyGrid);
+	    occupancy_bridge.toImageMsg(occupancyGrid_msg);
+	    path_pub.publish(occupancyGrid_msg);
+		
+		ros::spinOnce();
+	    counter++;
+	}
+    
     return(0);
+
 }
