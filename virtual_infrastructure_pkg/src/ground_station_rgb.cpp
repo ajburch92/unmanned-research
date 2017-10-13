@@ -105,7 +105,7 @@ public:
 	void downsampleGrid(Mat grid) {
 		gridDown = grid;
 		downsample_factor = 4;
-		Size size(241,322);
+		Size size(322,241);
 		resize(grid,gridDown,size);
 		//pyrDown( grid, gridDown, Size( grid.cols/downsample_factor, grid.rows/downsample_factor ) );
 
@@ -809,7 +809,7 @@ private:
 	bool patternfound = 0;
 
 	//astar Params
-	int astar_size = 50;
+	int astar_size = 30;
 
 	// tracking/detection toggle status (via space bar)
 	bool tracking_status = FALSE;

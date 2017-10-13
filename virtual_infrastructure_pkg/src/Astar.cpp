@@ -48,11 +48,11 @@ ros::Publisher wp_pub;
 // start and finish locations
 int xA = 0;
 int yA = 0;
-int xB = 1;
-int yB =  1;
+int xB = 100;
+int yB = 200;
 
-Mat gridDown(m,n,CV_8UC1,Scalar(0));
-Mat pathDown(m,n,CV_8UC1,Scalar(0));
+Mat gridDown(n,m,CV_8UC1,Scalar(0));
+Mat pathDown(n,m,CV_8UC1,Scalar(0));
 Mat occupancyGrid(n,m,CV_8UC1,Scalar(0));
 
 class node
@@ -256,7 +256,7 @@ void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg)
     xtemp = xtemp / scale_factor;
     ytemp = ytemp / scale_factor;
     xA  = (int)xtemp;
-    yA = (int)xtemp;
+    yA = (int)ytemp;
 
     ROS_INFO("vehicleCallback: ( %i , %i )",xA,yA);
 }
@@ -272,7 +272,7 @@ void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg)
     xtemp = xtemp / scale_factor;
     ytemp = ytemp / scale_factor;
     xB  = (int)xtemp;
-    yB = (int)xtemp;
+    yB = (int)ytemp;
 
     ROS_INFO("goalCallback: ( %i , %i )",xB,yB);
 }
@@ -281,6 +281,10 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
 {
     // fillout the grid matrix with a '+' pattern
 	cv_bridge::CvImagePtr occupancyGrid_ptr;
+
+	gridDown.setTo(Scalar(0));
+	occupancyGrid.setTo(Scalar(0));
+	gridDown.setTo(Scalar(0));
 	
 	try
 	{
@@ -296,7 +300,7 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
     gridDown = occupancyGrid_ptr -> image;
 
     // convert to grid size - ALREADY DOWN SAMPLED, JUST NEED TO INCREASE RESOLUTION UPON PUBLISHING
-
+    //memcpy(gridDown.data, grid,n*m*sizeof(int)
     // fill matrix grid same size with object positions
     for (int x = 1; x <= n; x++)
     {
@@ -311,40 +315,7 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
 			}
 		}
 	}
-
-}
-
-
-int main(int argc, char **argv)
-{
-
-    srand(time(NULL));
-
-    // create empty grid
-    for(int y=0;y<m;y++)
-    {
-        for(int x=0;x<n;x++) grid[x][y]=0;
-    }
-
-    // init ROS node
-    ros::init(argc, argv, "astar_planner");
-    ros::NodeHandle node;
-    // subscibe to vision outputs
-    image_transport::ImageTransport it_astar(node);
-	image_transport::Subscriber sub_occupancyGrid = it_astar.subscribe("/occupancyGrid",1, &occupancyGridCallback); // use image_rect
-    ros::Subscriber sub_vehicle = node.subscribe("/vehicle_pose",20, &vehicleCallback);
-    ros::Subscriber sub_goal = node.subscribe("/goal_pose",20, &goalCallback);
-
-    // publish topics for the output visualization and for the next waypoint for the low level controller.
-    path_pub = it_astar.advertise("/pathGrid",1);
-	wp_pub = node.advertise<geometry_msgs::Pose2D>("wp_pose",2);
-    
-    ROS_INFO("Start path planning operations");
-
-    //enter while loop performing path planning operations
-    while (ros::ok())
-	{
-	    std_msgs::Header header; //empty header
+		    std_msgs::Header header; //empty header
 		header.seq = counter; // user defined counter
 		header.stamp = ros::Time::now(); // time
 	    cv_bridge::CvImage occupancy_bridge;
@@ -377,7 +348,7 @@ int main(int argc, char **argv)
 	            grid[x][y]=3;
 	            // draw path
 	            if (i>0) {
-	            	line(occupancyGrid,Point(x_prev,y_prev),Point(x,y),(255,0,0),2);
+	            	//line(occupancyGrid,Point(x_prev,y_prev),Point(x,y),(255,0,0),2);
 	            }
 	            x_prev = x;
 	            y_prev = y;
@@ -397,22 +368,23 @@ int main(int argc, char **argv)
 	                else if(grid[x][y]==1)
 	                {
 	                    //cout<<"O"; //obstacle
-	                    occupancyGrid.at<uchar>(cv::Point(y,x)) = 255;
+	                    occupancyGrid.at<uchar>(Point(x,y)) = 255;
 	                }
 	                else if(grid[x][y]==2)
 	                {
 	                    //cout<<"S"; //start
-	                    circle(occupancyGrid, Point(x,y), 9, 255,3);
+	                    circle(occupancyGrid, Point(x,y), 2, 125,2);
 
 	                }
 	                else if(grid[x][y]==3)
 	                {
-	                    circle(occupancyGrid, Point(x,y), 9,255,1);
+	                    occupancyGrid.at<uchar>(Point(x,y)) = 150;
+	                    //circle(occupancyGrid, Point(x,y), 1,255,1);
 	                }
 	                else if(grid[x][y]==4)
 	                {
 	                    //cout<<"F"; //finish
-	                    circle(occupancyGrid, Point(x,y), 9,255,3);
+	                    circle(occupancyGrid, Point(x,y), 2,175,2);
 	                }
 	            //cout<<endl;
 	            }
@@ -439,10 +411,46 @@ int main(int argc, char **argv)
 	    occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, occupancyGrid);
 	    occupancy_bridge.toImageMsg(occupancyGrid_msg);
 	    path_pub.publish(occupancyGrid_msg);
+
+	    //empty map
+	    for(int y=0;y<m;y++)
+    	{
+        	for(int x=0;x<n;x++) grid[x][y]=0;
+    	}
+    	//empty mats
 		
-		ros::spinOnce();
 	    counter++;
-	}
+
+}
+
+
+int main(int argc, char **argv)
+{
+
+    srand(time(NULL));
+
+    // create empty grid
+    for(int y=0;y<m;y++)
+    {
+        for(int x=0;x<n;x++) grid[x][y]=0;
+    }
+
+    // init ROS node
+    ros::init(argc, argv, "astar_planner");
+    ros::NodeHandle node;
+    // subscibe to vision outputs
+    image_transport::ImageTransport it_astar(node);
+	image_transport::Subscriber sub_occupancyGrid = it_astar.subscribe("/occupancyGrid",1, &occupancyGridCallback); // use image_rect
+    ros::Subscriber sub_vehicle = node.subscribe("/vehicle_pose",20, &vehicleCallback);
+    ros::Subscriber sub_goal = node.subscribe("/goal_pose",20, &goalCallback);
+
+    // publish topics for the output visualization and for the next waypoint for the low level controller.
+    path_pub = it_astar.advertise("/pathGrid",1);
+	wp_pub = node.advertise<geometry_msgs::Pose2D>("wp_pose",2);
+    
+    ROS_INFO("Start path planning operations");
+
+    ros::spin();
     
     return(0);
 
