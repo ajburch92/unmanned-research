@@ -52,7 +52,9 @@ ros::Publisher wp_pub;
 int xA = 0;
 int yA = 0;
 int xB = 100;
-int yB = 200;
+int yB = 100;
+double x_target_wp = 1;
+double y_target_wp = 1;
 
 Mat gridDown(n,m,CV_8UC1,Scalar(0));
 Mat pathDown(n,m,CV_8UC1,Scalar(0));
@@ -244,11 +246,6 @@ void upsampleGrid () {
 	pyrUp( gridDown, occupancyGrid, Size( gridDown.cols*scale_factor, gridDown.rows*scale_factor) );
 }
 
-void drawPath()
-{    
-    //draw points on image
-    circle(gridDown, Point(xB,yB), 9, Scalar(255,0,0),3);
-}
 
 void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
 {
@@ -309,7 +306,7 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
     {
 		for (int y = 1; y<=m; y++)
 		{
-			int pix = (int)gridDown.at<uchar>(x,y);
+			int pix = (int)gridDown.at<uchar>(y,x);
 			if (pix > 0) // obstacle
 			{
 				grid[x][y] = 1;
@@ -406,20 +403,8 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
         }
     }
 
-    // get next step in route
-    c =route.at(0);
-    j=atoi(&c); 
-    x=x+dx[j];
-    y=y+dy[j];
-
-    //geometry_msgs::Pose2D wp_pose_msg;
-
-    //scale waypoints for rgb thread
-	//wp_pose_msg.x = x*scale_factor;
-	//wp_pose_msg.y = y*scale_factor;
-	//ROS_INFO("wp pose: ( %i , %i ) ",x,y);
 	wp_pub.publish(poseArray); 
-
+    circle(occupancyGrid, Point((int)x_target_wp,(int)y_target_wp), 2, 200,2);
 
     // increase occupancy grid resolution
     
@@ -436,6 +421,14 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
 	
     counter++;
 
+}
+
+void waypointCallback (const geometry_msgs::Pose2D::ConstPtr& target_wp_msg) 
+{
+
+    x_target_wp  = target_wp_msg->x/scale_factor;
+    y_target_wp = target_wp_msg->y/scale_factor;
+    ROS_INFO("waypointCallback: ( %f , %f )",x_target_wp,y_target_wp);
 }
 
 
@@ -458,6 +451,7 @@ int main(int argc, char **argv)
 	image_transport::Subscriber sub_occupancyGrid = it_astar.subscribe("/occupancyGrid",1, &occupancyGridCallback); // use image_rect
     ros::Subscriber sub_vehicle = node.subscribe("/vehicle_pose",20, &vehicleCallback);
     ros::Subscriber sub_goal = node.subscribe("/goal_pose",20, &goalCallback);
+    ros::Subscriber sub_wp = node.subscribe("/target_wp",20, &waypointCallback);
 
     // publish topics for the output visualization and for the next waypoint for the low level controller.
     path_pub = it_astar.advertise("/pathGrid",1);

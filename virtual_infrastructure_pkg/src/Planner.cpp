@@ -136,15 +136,17 @@ void waypointCallback (const geometry_msgs::PoseArray::ConstPtr& waypoint_pose_m
 {
   int i = 0;
   double euclidean_d=0;
-    while (euclidean_d < LOS_RADIUS)
+  int sz = waypoint_pose_msg->poses.size();
+    while ((euclidean_d < LOS_RADIUS) || (i<sz))
     {
-      euclidean_d = sqrt((x_vehicle-waypoint_pose_msg.poses[i].position->x)^2+(y_vehicle-waypoint_pose_msg.poses[i].position ->y)^2);
+      euclidean_d = sqrt(((x_vehicle-waypoint_pose_msg->poses[i].position.x)*(x_vehicle-waypoint_pose_msg->poses[i].position.x)) + ((y_vehicle-waypoint_pose_msg->poses[i].position.y)*(y_vehicle-waypoint_pose_msg->poses[i].position.y)));
       i++;
     }
 
-    x_wp  = waypoint_pose_msg.poses[i].position->x;
-    y_wp = waypoint_pose_msg.poses[i].position ->y;
-    ROS_INFO("waypointTarget: ( %f , %f )",x_wp,y_wp);
+    x_wp  = waypoint_pose_msg->poses[i].position.x;
+    y_wp = waypoint_pose_msg->poses[i].position.y;
+
+    ROS_INFO("waypointTarget: ( %f , %f ), waypointDistance: %f",x_wp,y_wp,euclidean_d);
     
     geometry_msgs::Pose2D target_wp_msg;
     target_wp_msg.x = x_wp;
@@ -181,7 +183,7 @@ int main(int argc, char **argv)
 
   target_angle_pub = n.advertise<std_msgs::Float64>("/target_angle",2);
   target_speed_pub = n.advertise<std_msgs::Float64>("/target_speed",2);
-  target_wp_pub = n.advertise<std_msgs::Float64>("/target_wp",2);
+  target_wp_pub = n.advertise<geometry_msgs::Pose2D>("/target_wp",2);
 
   ros::spin();
 

@@ -13,6 +13,8 @@
 //#include "vehicle_pose.h"
 //#include "goal_pose.h"
 #include <geometry_msgs/Pose2D.h>
+#include <geometry_msgs/PoseArray.h>
+
 // opencv
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -30,6 +32,7 @@
 //object class
 #include "Object.h"
 //msg file headers
+#define LOS_RADIUS 100 //currently in pixels
 
 using namespace std;
 using namespace cv;
@@ -50,7 +53,9 @@ public:
 	occupancyGrid_pub = it_rgb.advertise("/occupancyGrid" , 1);
 	rgb_vehicle_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("vehicle_pose",2);
 	rgb_goal_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("goal_pose",2);
-	
+	sub_target_wp = nh_rgb.subscribe("/target_wp",2, &RGBImageProcessor::targetwpCallback,this);
+	sub_vector_wp = nh_rgb.subscribe("/wp_pose",2, &RGBImageProcessor::vectorwpCallback,this);
+
 	// store launch params
 	nh_rgb.param("checkerboard_width", checkerboard_width, -1);
 	nh_rgb.param("checkerboard_height", checkerboard_height, -1);
@@ -123,18 +128,29 @@ public:
 	{ // draw on frame
 		int n, iter;
 		if (counter < MEMORY_SIZE) {n = counter;} else {n = MEMORY_SIZE;}
-
+		//draw objects
 		Scalar white = Scalar(255,255,255);
 		if (contours.size() > 0) {
 			drawContours(frame,contours,-1,white,2,8,hierarchy);
 		}
+
+		//draw path and target WP
+		int size = vector_wp.size();
+		Scalar path_color = Scalar(0,255,0);
+		Scalar wp_color = Scalar(0,255,255);
+    	for (int i=0;i<size;i++)
+    	{
+    		circle(frame,vector_wp[i], 2, path_color,2);
+
+		}
+		circle(frame,Point((int)x_target_wp, (int)y_target_wp), 3, wp_color,3);
+
 		for(int i =0; i<theObjects.size(); i++)
 	  	{ //for each object
 	    //draw current position
 			try {
 				drawContours(frame,contours,i,theObjects.at(i).getColor(),2,8,hierarchy);
 			} catch (Exception& e) {}
-	  		circle(frame,Point(theObjects.at(i).getXPos(MEMORY_SIZE-1),theObjects.at(i).getYPos(MEMORY_SIZE-1)),5,Scalar(0,0,255));
 	  		putText(frame,intToString(theObjects.at(i).getXPos(MEMORY_SIZE-1))+ " , " + intToString(theObjects.at(i).getYPos(MEMORY_SIZE-1)),cv::Point(theObjects.at(i).getXPos(MEMORY_SIZE-1),theObjects.at(i).getYPos(MEMORY_SIZE-1)+20),1,1,Scalar(0,255,0));
 	  		putText(frame,theObjects.at(i).getType() + ": " + intToString(i),Point(theObjects.at(i).getXPos(MEMORY_SIZE-1),theObjects.at(i).getYPos(MEMORY_SIZE-1)-20),1,2,theObjects.at(i).getColor());
 	    	//draw past positions if tracking
@@ -440,6 +456,8 @@ public:
 			vehicle_pose_msg.x = x;
 			vehicle_pose_msg.y = y;
 			vehicle_pose_msg.theta = pcaOrientation(contours[max_contour_index],frame);
+			circle(frame,Point(objects.at(0).getXPos(MEMORY_SIZE-1),objects.at(0).getYPos(MEMORY_SIZE-1)),LOS_RADIUS,Scalar(0,0,255));
+
 			ROS_INFO("vehicle pose: ( %f , %f ) : th = %f ",x,y,th);
 			rgb_vehicle_pub.publish(vehicle_pose_msg); 
 		}
@@ -456,6 +474,24 @@ public:
 		contours_prev = contours;
 		hierarchy_prev = hierarchy;
 
+	}
+
+	void targetwpCallback (const geometry_msgs::Pose2D::ConstPtr& target_wp_msg) 
+	{
+	    x_target_wp  = target_wp_msg->x;
+	    y_target_wp = target_wp_msg->y;
+	    ROS_INFO("targetwpCallback: ( %f , %f )",x_target_wp,y_target_wp);
+	}
+
+	void vectorwpCallback (const geometry_msgs::PoseArray::ConstPtr& vector_wp_msg) 
+	{
+    	ROS_INFO("vectorwpCallback");
+    	vector_wp.clear();
+    	int size = vector_wp_msg->poses.size();
+    	for (int i=0;i<size;i++)
+    	{
+    		vector_wp.push_back(Point((int)vector_wp_msg->poses[i].position.x,(int)vector_wp_msg->poses[i].position.y));
+		}
 	}
 	
 	void rgbFeedCallback(const sensor_msgs::ImageConstPtr& msg)
@@ -651,7 +687,7 @@ public:
 	      createTrackbar( "Birds Eye Height", trackbar_window_name, &birdseyeHeight, max_birdseye+1);
 
 	      // drawCheckerboardCorners
-	      drawChessboardCorners(birdseyeFeed, patternsize, Mat(corners), patternfound);      
+	      //drawChessboardCorners(birdseyeFeed, patternsize, Mat(corners), patternfound);      
 
 	      // Show processed image
 	      imshow(windowName2, HSVobjects);
@@ -838,6 +874,9 @@ private:
 	image_transport::Subscriber rgb_sub_;
 	image_transport::Publisher rgb_pub_;
 	image_transport::Publisher occupancyGrid_pub;
+	ros::Subscriber sub_target_wp;
+	ros::Subscriber sub_vector_wp;
+
 
 	int checkerboard_height = 1;
 	int checkerboard_PXheight = 1;
@@ -849,6 +888,10 @@ private:
 
 	int gridDown_height;
 	int gridDown_width;
+
+	double x_target_wp = 0;
+	double y_target_wp = 0;
+	vector<Point> vector_wp;
 };
 
 
