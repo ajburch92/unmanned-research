@@ -6,10 +6,13 @@
 #include <string>
 #include <math.h>
 #include <ctime>
+#include <vector>
 
 #include <ros/ros.h>
 #include <std_msgs/Float64.h>
 #include <geometry_msgs/Pose2D.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/PoseArray.h>
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
@@ -306,7 +309,7 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
     {
 		for (int y = 1; y<=m; y++)
 		{
-			int pix = (int)gridDown.at<uchar>(y,x);
+			int pix = (int)gridDown.at<uchar>(x,y);
 			if (pix > 0) // obstacle
 			{
 				grid[x][y] = 1;
@@ -315,111 +318,123 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
 			}
 		}
 	}
-		    std_msgs::Header header; //empty header
-		header.seq = counter; // user defined counter
-		header.stamp = ros::Time::now(); // time
-	    cv_bridge::CvImage occupancy_bridge;
-		sensor_msgs::Image occupancyGrid_msg;
-
-	    clock_t start = clock();
-	    string route=pathFind(xA, yA, xB, yB);
-	    if(route=="") ROS_INFO("An empty route generated!");
-	    // get cpu time
-	    clock_t end = clock();
-	    double time_elapsed = double(end - start);
-	    ROS_INFO("Time to calculate the route (ms): %f" , time_elapsed);
-
-	    // follow the route on the grid and display it 
-	    int j; char c;
-		int x=xA;
-		int y=yA;
-		int x_prev;
-		int y_prev;
-	    if(route.length()>0)
-	    {
-
-	        grid[x][y]=2;
-	        for(int i=0;i<route.length();i++)
-	        {
-	            c =route.at(i);
-	            j=atoi(&c); 
-	            x=x+dx[j];
-	            y=y+dy[j];
-	            grid[x][y]=3;
-	            // draw path
-	            if (i>0) {
-	            	//line(occupancyGrid,Point(x_prev,y_prev),Point(x,y),(255,0,0),2);
-	            }
-	            x_prev = x;
-	            y_prev = y;
-	        }
-	        grid[x][y]=4;
-	    
-	        // display the grid with the route
-	        //write to output image topic
-	        for(int y=0;y<m;y++)
-	        {
-	            for(int x=0;x<n;x++)
-	            {
-	                if(grid[x][y]==0)
-	                {
-	                    //cout<<"."; // open space, keep black
-	                }
-	                else if(grid[x][y]==1)
-	                {
-	                    //cout<<"O"; //obstacle
-	                    occupancyGrid.at<uchar>(Point(x,y)) = 255;
-	                }
-	                else if(grid[x][y]==2)
-	                {
-	                    //cout<<"S"; //start
-	                    circle(occupancyGrid, Point(x,y), 2, 125,2);
-
-	                }
-	                else if(grid[x][y]==3)
-	                {
-	                    occupancyGrid.at<uchar>(Point(x,y)) = 150;
-	                    //circle(occupancyGrid, Point(x,y), 1,255,1);
-	                }
-	                else if(grid[x][y]==4)
-	                {
-	                    //cout<<"F"; //finish
-	                    circle(occupancyGrid, Point(x,y), 2,175,2);
-	                }
-	            //cout<<endl;
-	            }
-	        }
-	    }
-
-	    // get next step in route
-	    c =route.at(0);
-	    j=atoi(&c); 
-	    x=x+dx[j];
-	    y=y+dy[j];
-
-	    geometry_msgs::Pose2D wp_pose_msg;
-
-	    //scale waypoints for rgb thread
-		wp_pose_msg.x = x*scale_factor;
-		wp_pose_msg.y = y*scale_factor;
-		ROS_INFO("wp pose: ( %i , %i ) ",x,y);
-		wp_pub.publish(wp_pose_msg); 
 
 
-	    // increase occupancy grid resolution
-	    
-	    occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, occupancyGrid);
-	    occupancy_bridge.toImageMsg(occupancyGrid_msg);
-	    path_pub.publish(occupancyGrid_msg);
+	std_msgs::Header header; //empty header
+	header.seq = counter; // user defined counter
+	header.stamp = ros::Time::now(); // time
+    cv_bridge::CvImage occupancy_bridge;
+	sensor_msgs::Image occupancyGrid_msg;
 
-	    //empty map
-	    for(int y=0;y<m;y++)
-    	{
-        	for(int x=0;x<n;x++) grid[x][y]=0;
-    	}
-    	//empty mats
-		
-	    counter++;
+	// create waypoint message
+	geometry_msgs::PoseArray poseArray;
+    poseArray.poses.clear();
+    poseArray.header.stamp=ros::Time::now();
+	geometry_msgs::Pose wp_pose_msg;
+
+    clock_t start = clock();
+    string route=pathFind(xA, yA, xB, yB);
+    if(route=="") ROS_INFO("An empty route generated!");
+    // get cpu time
+    clock_t end = clock();
+    double time_elapsed = double(end - start);
+    ROS_INFO("Time to calculate the route (ms): %f" , time_elapsed);
+
+    // follow the route on the grid and display it 
+    int j; char c;
+	int x=xA;
+	int y=yA;
+	int x_prev;
+	int y_prev;
+    if(route.length()>0)
+    {
+
+        grid[x][y]=2;
+        for(int i=0;i<route.length();i++)
+        {
+            c =route.at(i);
+            j=atoi(&c); 
+            x=x+dx[j];
+            y=y+dy[j];
+            grid[x][y]=3;
+
+            // fill wp vector
+
+
+            wp_pose_msg.position.x = double(x*scale_factor);
+            wp_pose_msg.position.y = double(y*scale_factor); // change to doubles
+            poseArray.poses.push_back(wp_pose_msg);
+
+            x_prev = x;
+            y_prev = y;
+        }
+        grid[x][y]=4;
+    
+        // display the grid with the route
+        //write to output image topic
+        for(int y=0;y<m;y++)
+        {
+            for(int x=0;x<n;x++)
+            {
+                if(grid[x][y]==0)
+                {
+                    //cout<<"."; // open space, keep black
+                }
+                else if(grid[x][y]==1)
+                {
+                    //cout<<"O"; //obstacle
+                    occupancyGrid.at<uchar>(Point(x,y)) = 255;
+                }
+                else if(grid[x][y]==2)
+                {
+                    //cout<<"S"; //start
+                    circle(occupancyGrid, Point(x,y), 2, 125,2);
+
+                }
+                else if(grid[x][y]==3)
+                {
+                    occupancyGrid.at<uchar>(Point(x,y)) = 150;
+                    //circle(occupancyGrid, Point(x,y), 1,255,1);
+                }
+                else if(grid[x][y]==4)
+                {
+                    //cout<<"F"; //finish
+                    circle(occupancyGrid, Point(x,y), 2,175,2);
+                }
+            //cout<<endl;
+            }
+        }
+    }
+
+    // get next step in route
+    c =route.at(0);
+    j=atoi(&c); 
+    x=x+dx[j];
+    y=y+dy[j];
+
+    //geometry_msgs::Pose2D wp_pose_msg;
+
+    //scale waypoints for rgb thread
+	//wp_pose_msg.x = x*scale_factor;
+	//wp_pose_msg.y = y*scale_factor;
+	//ROS_INFO("wp pose: ( %i , %i ) ",x,y);
+	wp_pub.publish(poseArray); 
+
+
+    // increase occupancy grid resolution
+    
+    occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, occupancyGrid);
+    occupancy_bridge.toImageMsg(occupancyGrid_msg);
+    path_pub.publish(occupancyGrid_msg);
+
+    //empty map
+    for(int y=0;y<m;y++)
+	{
+    	for(int x=0;x<n;x++) grid[x][y]=0;
+	}
+	//empty mats
+	
+    counter++;
 
 }
 
@@ -446,7 +461,7 @@ int main(int argc, char **argv)
 
     // publish topics for the output visualization and for the next waypoint for the low level controller.
     path_pub = it_astar.advertise("/pathGrid",1);
-	wp_pub = node.advertise<geometry_msgs::Pose2D>("wp_pose",2);
+	wp_pub = node.advertise<geometry_msgs::PoseArray>("wp_pose",2);
     
     ROS_INFO("Start path planning operations");
 

@@ -126,13 +126,13 @@ public:
 
 		Scalar white = Scalar(255,255,255);
 		if (contours.size() > 0) {
-			drawContours(frame,contours,-1,white,1,8,hierarchy);
+			drawContours(frame,contours,-1,white,2,8,hierarchy);
 		}
 		for(int i =0; i<theObjects.size(); i++)
 	  	{ //for each object
 	    //draw current position
 			try {
-				drawContours(frame,contours,i,theObjects.at(i).getColor(),1,8,hierarchy);
+				drawContours(frame,contours,i,theObjects.at(i).getColor(),2,8,hierarchy);
 			} catch (Exception& e) {}
 	  		circle(frame,Point(theObjects.at(i).getXPos(MEMORY_SIZE-1),theObjects.at(i).getYPos(MEMORY_SIZE-1)),5,Scalar(0,0,255));
 	  		putText(frame,intToString(theObjects.at(i).getXPos(MEMORY_SIZE-1))+ " , " + intToString(theObjects.at(i).getYPos(MEMORY_SIZE-1)),cv::Point(theObjects.at(i).getXPos(MEMORY_SIZE-1),theObjects.at(i).getYPos(MEMORY_SIZE-1)+20),1,1,Scalar(0,255,0));
@@ -603,7 +603,12 @@ public:
 			threshold(HSVobjects, HSVobjects, 1, 255, cv::THRESH_BINARY);
 			morphologicalOps(HSVobjects, 1, astar_size);
 	        subtract(objectFeed_thresh,HSVobjects,occupancyGrid);
-	        morphologicalOps(objectFeed_thresh, 3, astar_size);
+	        morphologicalOps(occupancyGrid, 3, astar_size);
+	        Mat HSVoccupancyGrid;
+	        cvtColor(occupancyGrid, HSVoccupancyGrid, CV_GRAY2BGR,3);
+	        cvtColor(HSVoccupancyGrid, HSVoccupancyGrid, CV_BGR2HSV,3);
+	        objectFeed += HSVoccupancyGrid;
+
 
 	      // either object detection or tracking mode
 	    	if (tracking_status == FALSE)
@@ -619,7 +624,7 @@ public:
 	      {
 	      	// for VISUALIZATION???
 
-	      	detectObjects(objectFeed_thresh,objectFeed, " ");
+	      	detectObjects(occupancyGrid,objectFeed, " ");
 
 	      	trackObjects(BLUEthreshold,objectFeed,objects_blue,"blue");
 	      	//trackObjects(GREENthreshold,objectFeed,objects_green,"green");
@@ -651,7 +656,7 @@ public:
 	      // Show processed image
 	      imshow(windowName2, HSVobjects);
 	      imshow(windowName3,objectFeed);
-	      imshow(windowName,HSVthreshold);
+	      imshow(windowName,objectFeed_thresh);
 	      imshow(windowName4,birdseyeFeed);
 	      imshow(windowName5,occupancyGrid);
 	      imshow(windowName6,fgMaskMOG);
@@ -809,7 +814,7 @@ private:
 	bool patternfound = 0;
 
 	//astar Params
-	int astar_size = 30;
+	int astar_size = 50; // change to length of car
 
 	// tracking/detection toggle status (via space bar)
 	bool tracking_status = FALSE;
