@@ -33,6 +33,8 @@
 #include "Object.h"
 //msg file headers
 #define LOS_RADIUS 100 //currently in pixels
+#define HEADING_LINE_THICKNESS 2
+#define VEHICLE_POSE_HISTORY_SIZE 20
 
 using namespace std;
 using namespace cv;
@@ -62,6 +64,11 @@ public:
 	//create background subtractor object
 
 	pMOG = new BackgroundSubtractorMOG();
+
+	// Set each element in history to 0
+	for (int i = 0; i < VEHICLE_POSE_HISTORY_SIZE; i++) {
+	    vehicle_pose_history[i] = Point(0, 0);
+	}
 
 
 	}
@@ -231,6 +238,65 @@ public:
 	    drawAxis(objectFeed, cntr, p2, Scalar(255, 255, 0), 5);
 	    double angle = atan2(eigen_vecs[0].y, eigen_vecs[0].x); // orientation in radians
 		return angle;
+	}
+
+	void update_pose_history(){
+        // Save current location to history
+        vehicle_pose_history[vehicle_pose_history_pointer] = vehicle_pose;
+        
+        // Update circular array pointer
+        vehicle_pose_history_pointer = (vehicle_pose_history_pointer + 1) % VEHICLE_POSE_HISTORY_SIZE;
+	}
+
+	double polyOrientation(Mat &objectFeed){
+
+		double angle=0;
+    
+	    // Initialize curve
+	    vector<Point> pose_poly;
+	    
+	    // Sort vehicle location history chronologically
+	    Point * vehicle_pose_history_sorted = new Point[VEHICLE_POSE_HISTORY_SIZE];
+	    
+	    // Initialize input vector (approxPolyDP takes only vectors and not arrays)
+	    vector<Point> input_points;
+	    
+	    for (int i = 0; i < VEHICLE_POSE_HISTORY_SIZE; i++) {
+	        vehicle_pose_history_sorted[i] = vehicle_pose_history[(vehicle_pose_history_pointer + i) % VEHICLE_POSE_HISTORY_SIZE];
+	        input_points.push_back(vehicle_pose_history_sorted[i]);
+	    }
+	    
+	    // Approximate location history with a polynomial curve
+	    approxPolyDP(input_points, pose_poly, 4, false);
+
+	    // Draw polynomial curve
+	    for (int i = 0; i < pose_poly.size() - 1; i++) {
+	    	if (pose_poly[i].x != 0 && pose_poly[i].y != 0) {
+	    	    line(objectFeed, pose_poly[i], pose_poly[i + 1], Scalar(255, 0, 255), HEADING_LINE_THICKNESS, CV_AA);
+	    	}
+	    }
+	    
+	    // Difference in x axis
+	    int delta_x_curve = pose_poly[pose_poly.size() - 1].x - pose_poly[pose_poly.size() - 2].x;
+	    
+	    // Difference in y axis
+	    int delta_Y_curve = pose_poly[pose_poly.size() - 1].y - pose_poly[pose_poly.size() - 2].y;
+	    
+	    // Angle in degrees
+	    double vehicle_angle_polynomial_approximation = atan2(delta_Y_curve, delta_x_curve) * (180 / M_PI);
+
+	    // Compute heading point
+	    Point heading_point_polynomial_approximation;
+	    heading_point_polynomial_approximation.x = (int) round(pose_poly[pose_poly.size() - 1].x + LOS_RADIUS * cos(vehicle_angle_polynomial_approximation * CV_PI / 180.0));
+	    heading_point_polynomial_approximation.y = (int) round(pose_poly[pose_poly.size() - 1].y + LOS_RADIUS * sin(vehicle_angle_polynomial_approximation * CV_PI / 180.0));
+	    
+	    // Draw line between current location and heading point
+	    line(objectFeed, vehicle_pose, heading_point_polynomial_approximation, Scalar(255, 255, 0), HEADING_LINE_THICKNESS, 8, 0);
+	    
+	    // Use curve polynomial tangent angle
+	    angle = vehicle_angle_polynomial_approximation;
+
+	    return angle;
 	} 
 
 	void morphologicalOps (Mat &thresh, int erodeS, int dilateS) 
@@ -451,11 +517,19 @@ public:
 
 		if (name=="yellow") { // vehicle
 
+
+            // Save vehicle location
+			vehicle_pose = Point(x, y);
+
 			//pca analysis
 
 			vehicle_pose_msg.x = x;
 			vehicle_pose_msg.y = y;
-			vehicle_pose_msg.theta = pcaOrientation(contours[max_contour_index],frame);
+			
+			//vehicle_pose_msg.theta = pcaOrientation(contours[max_contour_index],frame);
+			vehicle_pose_msg.theta = polyOrientation(frame);
+			
+
 			circle(frame,Point(objects.at(0).getXPos(MEMORY_SIZE-1),objects.at(0).getYPos(MEMORY_SIZE-1)),LOS_RADIUS,Scalar(0,0,255));
 
 			ROS_INFO("vehicle pose: ( %f , %f ) : th = %f ",x,y,th);
@@ -645,7 +719,6 @@ public:
 	        cvtColor(HSVoccupancyGrid, HSVoccupancyGrid, CV_BGR2HSV,3);
 	        objectFeed += HSVoccupancyGrid;
 
-
 	      // either object detection or tracking mode
 	    	if (tracking_status == FALSE)
 	    	{
@@ -655,10 +728,16 @@ public:
 	    		//detectObjects(REDthreshold,objectFeed,"red");
 	    		putText(birdseyeFeed,"DETECTING OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
 
+	            // Set each element in history to 0
+	            for (int i = 0; i < VEHICLE_POSE_HISTORY_SIZE; i++) {
+	                vehicle_pose_history[i] = Point(0, 0);
+				}
+
 	    	} 
 	      else // tracking mode turned on
 	      {
-	      	// for VISUALIZATION???
+	      	// update pointer
+	      	update_pose_history();
 
 	      	detectObjects(occupancyGrid,objectFeed, " ");
 
@@ -691,7 +770,7 @@ public:
 
 	      // Show processed image
 	      imshow(windowName2, HSVobjects);
-	      imshow(windowName3,objectFeed);
+          imshow(windowName3,objectFeed);
 	      imshow(windowName,objectFeed_thresh);
 	      imshow(windowName4,birdseyeFeed);
 	      imshow(windowName5,occupancyGrid);
@@ -850,7 +929,7 @@ private:
 	bool patternfound = 0;
 
 	//astar Params
-	int astar_size = 50; // change to length of car
+	int astar_size = 150; // change to length of car
 
 	// tracking/detection toggle status (via space bar)
 	bool tracking_status = FALSE;
@@ -892,6 +971,16 @@ private:
 	double x_target_wp = 0;
 	double y_target_wp = 0;
 	vector<Point> vector_wp;
+
+	// vehicle location
+	Point vehicle_pose ;
+
+	// vehicle location history
+	Point * vehicle_pose_history = new Point[VEHICLE_POSE_HISTORY_SIZE];
+
+	// Timer to estimate vehicle heading
+	int vehicle_pose_history_pointer;
+
 };
 
 

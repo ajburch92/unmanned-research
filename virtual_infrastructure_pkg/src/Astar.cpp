@@ -51,8 +51,8 @@ ros::Publisher wp_pub;
 // start and finish locations
 int xA = 0;
 int yA = 0;
-int xB = 100;
-int yB = 100;
+int xB = 2;
+int yB = 2;
 double x_target_wp = 1;
 double y_target_wp = 1;
 
