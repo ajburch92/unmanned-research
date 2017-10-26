@@ -57,6 +57,7 @@ double x_vehicle, y_vehicle, x_wp, y_wp;
 
 vector<Point> vector_wp;
 
+double conversion_factor;
 
 
 void update_target_speed()
@@ -67,7 +68,7 @@ void update_target_speed()
     if (distance_to_target < 100) { // meter?? NEED TO CONVERT FROM PIXELS TO METERS
         target_speed = target_speed*distance_to_target;
     } else {
-      target_speed = 1.5;
+      target_speed = 1.5*conversion_factor; // pixels to meter/second
     }
 
     target_speed_msg.data = target_speed;
@@ -195,6 +196,7 @@ void waypointCallback (const geometry_msgs::PoseArray::ConstPtr& waypoint_pose_m
 
 int main(int argc, char **argv)
 {
+  conversion_factor = 1;
   pi_bool = 0;  
   x_wp = 0;
   y_wp = 0;
@@ -221,6 +223,7 @@ int main(int argc, char **argv)
   target_speed_pub = n.advertise<std_msgs::Float64>("/target_speed",2);
   target_wp_pub = n.advertise<geometry_msgs::Pose2D>("/target_wp",2);
 
+  
   ros::spin();
 
   return 0;

@@ -14,6 +14,7 @@
 //#include "goal_pose.h"
 #include <geometry_msgs/Pose2D.h>
 #include <geometry_msgs/PoseArray.h>
+#include <std_msgs/Float64.h>
 
 // opencv
 #include <opencv2/opencv.hpp>
@@ -57,6 +58,7 @@ public:
 	rgb_goal_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("goal_pose",2);
 	sub_target_wp = nh_rgb.subscribe("/target_wp",2, &RGBImageProcessor::targetwpCallback,this);
 	sub_vector_wp = nh_rgb.subscribe("/wp_pose",2, &RGBImageProcessor::vectorwpCallback,this);
+	sub_vector_wp = nh_rgb.subscribe("/target_angle",2, &RGBImageProcessor::targetAngleCallback,this);
 
 	// store launch params
 	nh_rgb.param("checkerboard_width", checkerboard_width, -1);
@@ -143,14 +145,18 @@ public:
 
 		//draw path and target WP
 		int size = vector_wp.size();
+		ROS_INFO("wp vector size = %i",size);
 		Scalar path_color = Scalar(0,255,0);
-		Scalar wp_color = Scalar(0,255,255);
+		Scalar wp_color = Scalar(255,50,0);
+
     	for (int i=0;i<size;i++)
     	{
     		circle(frame,vector_wp[i], 2, path_color,2);
+    		ROS_INFO("wp:%i,%i",vector_wp[i].x,vector_wp[i].y);
 
 		}
 		circle(frame,Point((int)x_target_wp, (int)y_target_wp), 3, wp_color,3);
+
 
 		for(int i =0; i<theObjects.size(); i++)
 	  	{ //for each object
@@ -534,6 +540,13 @@ public:
 
 			circle(frame,Point(objects.at(0).getXPos(MEMORY_SIZE-1),objects.at(0).getYPos(MEMORY_SIZE-1)),LOS_RADIUS, Scalar(102, 178, 255));
 
+			// draw target angle vector
+			Point target_angle_endpoint;
+		    target_angle_endpoint.x = (int) round(vehicle_pose.x + LOS_RADIUS * cos(target_angle));
+		    target_angle_endpoint.y = (int) round(vehicle_pose.y + LOS_RADIUS * sin(target_angle));		    
+		    line(frame, vehicle_pose, target_angle_endpoint, Scalar(255, 128, 0), HEADING_LINE_THICKNESS, 8, 0);
+
+
 			ROS_INFO("vehicle pose: ( %f , %f ) : th = %f ",x,y,th);
 			rgb_vehicle_pub.publish(vehicle_pose_msg); 
 		}
@@ -550,6 +563,12 @@ public:
 		contours_prev = contours;
 		hierarchy_prev = hierarchy;
 
+	}
+
+	void targetAngleCallback (const std_msgs::Float64::ConstPtr& target_angle_msg) 
+	{
+		target_angle = target_angle_msg -> data;
+	    ROS_INFO("targetAngleCallback: ( %f )",target_angle);
 	}
 
 	void targetwpCallback (const geometry_msgs::Pose2D::ConstPtr& target_wp_msg) 
@@ -604,7 +623,7 @@ public:
 			Size patternsize(8,6);
 	    	patternfound = findChessboardCorners(cameraFeed, patternsize,corners);  
 	    	putText(cameraFeed,"LOOKING FOR CHECKERBOARD",Point(0,50),1,2,Scalar(0,0,255),2); 
-	    	imshow(windowName,cameraFeed);
+	    	imshow(windowName3,cameraFeed);
 	    	waitKey(30);
 	    } 
 	    else { // pattern status already changed 
@@ -771,12 +790,12 @@ public:
 	      //drawChessboardCorners(birdseyeFeed, patternsize, Mat(corners), patternfound);      
 
 	      // Show processed image
-	      imshow(windowName2, HSVthreshold);
+	      //imshow(windowName2, HSVthreshold);
           imshow(windowName3,objectFeed);
-	      imshow(windowName,objectFeed_thresh);
-	      imshow(windowName4,birdseyeFeed);
-	      imshow(windowName5,occupancyGrid);
-	      imshow(windowName6,fgMaskMOG);
+	      //imshow(windowName,objectFeed_thresh);
+	      //imshow(windowName4,birdseyeFeed);
+	      //imshow(windowName5,occupancyGrid);
+	      //imshow(windowName6,fgMaskMOG);
 
 	      char k = (char) cv::waitKey(30); //wait for esc key
 	      //if(k == 27) break;
@@ -974,6 +993,8 @@ private:
 	double y_target_wp = 0;
 	vector<Point> vector_wp;
 
+	double target_angle = 0;
+
 	// vehicle location
 	Point vehicle_pose ;
 	Point prev_vehicle_pose ;
@@ -1001,6 +1022,9 @@ int main(int argc, char** argv)
 
   //launch image convertor
 	RGBImageProcessor rip;
+	
+	//ros::MultiThreadedSpinner spinner(0);
+	//spinner.spin();
 
 	ros::spin();
 
