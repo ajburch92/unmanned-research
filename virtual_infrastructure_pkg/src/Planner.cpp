@@ -6,6 +6,13 @@
 #include <geometry_msgs/Pose2D.h>
 #include <geometry_msgs/PoseArray.h>
 
+// opencv
+#include <opencv2/opencv.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/video/background_segm.hpp>
+#include <opencv2/calib3d/calib3d.hpp>
+
 #include <stdio.h>
 #include <iostream>
 #include <math.h>
@@ -15,6 +22,8 @@
 #define LOS_RADIUS 100 //currently in pixels
 
 using namespace std;
+using namespace cv;
+
 
 ros::Publisher target_angle_pub;
 ros::Publisher target_speed_pub;
@@ -45,6 +54,8 @@ double distance_to_target, target_speed;
 double angle_error, target_angle;
 
 double x_vehicle, y_vehicle, x_wp, y_wp;
+
+vector<Point> vector_wp;
 
 
 
@@ -127,6 +138,28 @@ void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg)
     x_vehicle  = vehicle_pose_msg->x;
     y_vehicle = vehicle_pose_msg->y;
     ROS_INFO("vehicleCallback: ( %f , %f )",x_vehicle,y_vehicle);
+    int i = 0;
+    double euclidean_d=0;
+    int sz = vector_wp.size();
+
+    /*while ((euclidean_d < LOS_RADIUS) || (i<sz))
+    {
+      euclidean_d = sqrt(((x_vehicle-vector_wp[i].x)*(x_vehicle-vector_wp[i].x)) + ((y_vehicle-vector_wp[i].y)*(y_vehicle-vector_wp[i].y)));
+      i++;
+      ROS_INFO("waypoint( %i , %i )",vector_wp[i].x,vector_wp[i].y);
+
+    }
+
+    x_wp  = vector_wp[i].x;
+    y_wp = vector_wp[i].y;
+
+    ROS_INFO("waypointTarget: ( %f , %f ), waypointDistance: %f",x_wp,y_wp,euclidean_d);
+    
+    geometry_msgs::Pose2D target_wp_msg;
+    target_wp_msg.x = x_wp;
+    target_wp_msg.y = y_wp;
+    target_wp_pub.publish(target_wp_msg); 
+*/
     update_target_speed();
     update_target_angle();
 
@@ -134,13 +167,16 @@ void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg)
 
 void waypointCallback (const geometry_msgs::PoseArray::ConstPtr& waypoint_pose_msg) 
 {
+
   int i = 0;
   double euclidean_d=0;
   int sz = waypoint_pose_msg->poses.size();
-    while ((euclidean_d < LOS_RADIUS) || (i<sz))
+    while ((euclidean_d <= LOS_RADIUS) && (i<(sz-1)))
     {
       euclidean_d = sqrt(((x_vehicle-waypoint_pose_msg->poses[i].position.x)*(x_vehicle-waypoint_pose_msg->poses[i].position.x)) + ((y_vehicle-waypoint_pose_msg->poses[i].position.y)*(y_vehicle-waypoint_pose_msg->poses[i].position.y)));
       i++;
+      //ROS_INFO("waypoint( %f , %f ), waypointDistance: %f",waypoint_pose_msg->poses[i].position.x,waypoint_pose_msg->poses[i].position.y,euclidean_d);
+      //vector_wp[i] = Point(waypoint_pose_msg->poses[i].position.x, waypoint_pose_msg->poses[i].position.y);
     }
 
     x_wp  = waypoint_pose_msg->poses[i].position.x;

@@ -159,7 +159,7 @@ public:
 				drawContours(frame,contours,i,theObjects.at(i).getColor(),2,8,hierarchy);
 			} catch (Exception& e) {}
 	  		putText(frame,intToString(theObjects.at(i).getXPos(MEMORY_SIZE-1))+ " , " + intToString(theObjects.at(i).getYPos(MEMORY_SIZE-1)),cv::Point(theObjects.at(i).getXPos(MEMORY_SIZE-1),theObjects.at(i).getYPos(MEMORY_SIZE-1)+20),1,1,Scalar(0,255,0));
-	  		putText(frame,theObjects.at(i).getType() + ": " + intToString(i),Point(theObjects.at(i).getXPos(MEMORY_SIZE-1),theObjects.at(i).getYPos(MEMORY_SIZE-1)-20),1,2,theObjects.at(i).getColor());
+	  		putText(frame,theObjects.at(i).getType() + ": " + intToString(i+1),Point(theObjects.at(i).getXPos(MEMORY_SIZE-1),theObjects.at(i).getYPos(MEMORY_SIZE-1)-20),1,2,theObjects.at(i).getColor());
 	    	//draw past positions if tracking
 	  		if (tracking_status == TRUE) {
 	  			for (int j = 1; j<(n-1); j++) { 
@@ -272,18 +272,17 @@ public:
 	    // Draw polynomial curve
 	    for (int i = 0; i < pose_poly.size() - 1; i++) {
 	    	if (pose_poly[i].x != 0 && pose_poly[i].y != 0) {
-	    	    line(objectFeed, pose_poly[i], pose_poly[i + 1], Scalar(255, 0, 255), HEADING_LINE_THICKNESS, CV_AA);
+	    	    line(objectFeed, pose_poly[i], pose_poly[i + 1], Scalar(102, 178, 255), HEADING_LINE_THICKNESS, CV_AA);
 	    	}
 	    }
 	    
-	    // Difference in x axis
-	    int delta_x_curve = pose_poly[pose_poly.size() - 1].x - pose_poly[pose_poly.size() - 2].x;
+
+	    int delta_x = pose_poly[pose_poly.size() - 1].x - pose_poly[pose_poly.size() - 2].x;
 	    
-	    // Difference in y axis
-	    int delta_Y_curve = pose_poly[pose_poly.size() - 1].y - pose_poly[pose_poly.size() - 2].y;
+	    int delta_y = pose_poly[pose_poly.size() - 1].y - pose_poly[pose_poly.size() - 2].y;
 	    
 	    // Angle in degrees
-	    double vehicle_angle_polynomial_approximation = atan2(delta_Y_curve, delta_x_curve) * (180 / M_PI);
+	    double vehicle_angle_polynomial_approximation = atan2(delta_y, delta_x) * (180 / M_PI);
 
 	    // Compute heading point
 	    Point heading_point_polynomial_approximation;
@@ -291,7 +290,7 @@ public:
 	    heading_point_polynomial_approximation.y = (int) round(pose_poly[pose_poly.size() - 1].y + LOS_RADIUS * sin(vehicle_angle_polynomial_approximation * CV_PI / 180.0));
 	    
 	    // Draw line between current location and heading point
-	    line(objectFeed, vehicle_pose, heading_point_polynomial_approximation, Scalar(255, 255, 0), HEADING_LINE_THICKNESS, 8, 0);
+	    line(objectFeed, vehicle_pose, heading_point_polynomial_approximation, Scalar(0, 128, 255), HEADING_LINE_THICKNESS, 8, 0);
 	    
 	    // Use curve polynomial tangent angle
 	    angle = vehicle_angle_polynomial_approximation;
@@ -372,13 +371,13 @@ public:
 	  }
 
 	  //save temporary vectors as current        
-	  if (name=="blue") {
+	  if (name=="goal") {
 		objects_blue = objects_temp;
 	  }
 	  else if (name=="green") {
 		objects_green = objects_temp;
 	  }
-	  else if (name=="yellow") {
+	  else if (name=="vehicle") {
 		objects_yellow = objects_temp;
 	  }
 	  else if (name=="red") {
@@ -408,7 +407,7 @@ public:
 		int x_obj, y_obj, x_temp, y_temp, num_objects;
 		float dist_temp, xdot_obj, ydot_obj;
 		int minPos = 0;
-	  	float max_dist = 400; //pixels
+	  	float max_dist = 1000; //pixels
 	  	vector<float> dist;
 	  	double x,y,th;
 	  	double max_contour_index;
@@ -515,7 +514,7 @@ public:
 		geometry_msgs::Pose2D vehicle_pose_msg;
 		geometry_msgs::Pose2D goal_pose_msg;
 
-		if (name=="yellow") { // vehicle
+		if (name=="vehicle") { // vehicle
 
 
             // Save vehicle location
@@ -528,14 +527,17 @@ public:
 			
 			//vehicle_pose_msg.theta = pcaOrientation(contours[max_contour_index],frame);
 			vehicle_pose_msg.theta = polyOrientation(frame);
+			//convert to radians
 			
+			vehicle_pose_msg.theta = vehicle_pose_msg.theta*CV_PI/180;
+			th = vehicle_pose_msg.theta;
 
-			circle(frame,Point(objects.at(0).getXPos(MEMORY_SIZE-1),objects.at(0).getYPos(MEMORY_SIZE-1)),LOS_RADIUS,Scalar(0,0,255));
+			circle(frame,Point(objects.at(0).getXPos(MEMORY_SIZE-1),objects.at(0).getYPos(MEMORY_SIZE-1)),LOS_RADIUS, Scalar(102, 178, 255));
 
 			ROS_INFO("vehicle pose: ( %f , %f ) : th = %f ",x,y,th);
 			rgb_vehicle_pub.publish(vehicle_pose_msg); 
 		}
-		else if (name=="blue") { // goal
+		else if (name=="goal") { // goal
 			goal_pose_msg.x = x;
 			goal_pose_msg.y = y;
 			ROS_INFO("goal pose: ( %i , %i ) ",x_obj,y_obj);
@@ -722,9 +724,9 @@ public:
 	      // either object detection or tracking mode
 	    	if (tracking_status == FALSE)
 	    	{
-	    		detectObjects(BLUEthreshold,objectFeed,"blue");
+	    		detectObjects(BLUEthreshold,objectFeed,"goal");
 	    		//detectObjects(GREENthreshold,objectFeed,"green");
-	    		detectObjects(YELLOWthreshold,objectFeed,"yellow");
+	    		detectObjects(YELLOWthreshold,objectFeed,"vehicle");
 	    		//detectObjects(REDthreshold,objectFeed,"red");
 	    		putText(birdseyeFeed,"DETECTING OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
 
@@ -741,9 +743,9 @@ public:
 
 	      	detectObjects(occupancyGrid,objectFeed, " ");
 
-	      	trackObjects(BLUEthreshold,objectFeed,objects_blue,"blue");
+	      	trackObjects(BLUEthreshold,objectFeed,objects_blue,"goal");
 	      	//trackObjects(GREENthreshold,objectFeed,objects_green,"green");
-	      	trackObjects(YELLOWthreshold,objectFeed,objects_yellow,"yellow");
+	      	trackObjects(YELLOWthreshold,objectFeed,objects_yellow,"vehicle");
 	      	//trackObjects(REDthreshold,objectFeed,objects_red,"red");
 	      	putText(birdseyeFeed,"TRACKING OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
 
@@ -769,7 +771,7 @@ public:
 	      //drawChessboardCorners(birdseyeFeed, patternsize, Mat(corners), patternfound);      
 
 	      // Show processed image
-	      imshow(windowName2, HSVobjects);
+	      imshow(windowName2, HSVthreshold);
           imshow(windowName3,objectFeed);
 	      imshow(windowName,objectFeed_thresh);
 	      imshow(windowName4,birdseyeFeed);
@@ -878,7 +880,7 @@ private:
 	//Color Segmentation Values
 	double H_BMIN = 84;
 	double H_BMAX = 129;
-	double S_BMIN = 134;
+	double S_BMIN = 100;
 	double S_BMAX = 198;
 	double V_BMIN = 119;
 	double V_BMAX = 229;
@@ -895,7 +897,7 @@ private:
 	int S_YMIN = 100;
 	int S_YMAX = 220;
 	int V_YMIN = 180;
-	int V_YMAX = 257;
+	int V_YMAX = 255;
 
 	int H_RMIN = 75;
 	int H_RMAX = 255;
@@ -974,11 +976,11 @@ private:
 
 	// vehicle location
 	Point vehicle_pose ;
+	Point prev_vehicle_pose ;
 
 	// vehicle location history
 	Point * vehicle_pose_history = new Point[VEHICLE_POSE_HISTORY_SIZE];
-
-	// Timer to estimate vehicle heading
+	
 	int vehicle_pose_history_pointer;
 
 };

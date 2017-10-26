@@ -18,7 +18,7 @@ Object::Object(string name)
 
 	setType(name);
 	
-	if(name=="blue"){
+	if(name=="goal"){
 
 		//TODO: use "calibration mode" to find HSV min
 		//and HSV max values
@@ -42,7 +42,7 @@ Object::Object(string name)
 		setColor(Scalar(0,255,0));
 
 	}
-	if(name=="yellow"){
+	if(name=="vehicle"){
 
 		//TODO: use "calibration mode" to find HSV min
 		//and HSV max values
@@ -127,13 +127,13 @@ float Object::getXVel(int i){
 void Object::rollXVectors() {
 	xPos_vec[0] = xPos_curr;
 	rotate(xPos_vec.begin(), xPos_vec.begin() + 1, xPos_vec.end());
-	ROS_INFO("xfirst= %i", yPos_vec[0]);
-	ROS_INFO("xlast= %i", yPos_vec[MEMORY_SIZE-1]);
-	ROS_INFO("xsecondtolast= %i", yPos_vec[MEMORY_SIZE-2]);
-	ROS_INFO("xthirdtolast= %i", yPos_vec[MEMORY_SIZE-3]);
-	ROS_INFO("x4thtolast= %i", yPos_vec[MEMORY_SIZE-4]);
-	ROS_INFO("x5thtolast= %i", yPos_vec[MEMORY_SIZE-5]);
-	ROS_INFO("x6thtolast= %i", yPos_vec[MEMORY_SIZE-6]);
+	//ROS_INFO("xfirst= %i", yPos_vec[0]);
+	//ROS_INFO("xlast= %i", yPos_vec[MEMORY_SIZE-1]);
+	//ROS_INFO("xsecondtolast= %i", yPos_vec[MEMORY_SIZE-2]);
+	//ROS_INFO("xthirdtolast= %i", yPos_vec[MEMORY_SIZE-3]);
+	///ROS_INFO("x4thtolast= %i", yPos_vec[MEMORY_SIZE-4]);
+	//ROS_INFO("x5thtolast= %i", yPos_vec[MEMORY_SIZE-5]);
+	//ROS_INFO("x6thtolast= %i", yPos_vec[MEMORY_SIZE-6]);
 
 
 	xVel_vec[0] = xVel_curr;
