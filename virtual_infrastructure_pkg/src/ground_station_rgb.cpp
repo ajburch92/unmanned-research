@@ -53,6 +53,7 @@ public:
 	image_transport::ImageTransport it_rgb(nh_rgb);
 	rgb_sub_ = it_rgb.subscribe("/camera/image_rect_color",1, &RGBImageProcessor::rgbFeedCallback, this); // use image_rect
 	rgb_pub_ = it_rgb.advertise("/ground_station_rgb",1);
+	conv_fac_pub = nh_rgb.advertise<std_msgs::Float64>("conv_fac",2);
 	occupancyGrid_pub = it_rgb.advertise("/occupancyGrid" , 1);
 	rgb_vehicle_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("vehicle_pose",2);
 	rgb_goal_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("goal_pose",2);
@@ -61,8 +62,11 @@ public:
 	sub_vector_wp = nh_rgb.subscribe("/target_angle",2, &RGBImageProcessor::targetAngleCallback,this);
 
 	// store launch params
-	nh_rgb.param("checkerboard_width", checkerboard_width, -1);
-	nh_rgb.param("checkerboard_height", checkerboard_height, -1);
+	//nh_rgb.param("checkerboard_width", checkerboard_width, -1);
+	//nh_rgb.param("checkerboard_height", checkerboard_height, -1);
+	checkerboard_height = 0.3 ; // meters
+	checkerboard_width = 0.55 ; // meters
+
 	//create background subtractor object
 
 	pMOG = new BackgroundSubtractorMOG();
@@ -109,8 +113,12 @@ public:
 
 	void calibrateCheckerboard() {
 			
-		height_factor = (double) checkerboard_height / checkerboard_PXheight ;
-		width_factor = (double) checkerboard_width / checkerboard_PXwidth ; // conver to Meters
+		height_factor = checkerboard_height / double(checkerboard_PXheight) ;
+		width_factor =  checkerboard_width / double(checkerboard_PXwidth) ; // conver to Meters
+
+		std_msgs::Float64 conv_fac_msg;
+	    conv_fac_msg.data = (width_factor + height_factor) / 2;
+	    conv_fac_pub.publish(conv_fac_msg);
 
 		ROS_INFO("height_factor = %f" , height_factor);
 	    ROS_INFO("width_factor = %f" , width_factor); 
@@ -625,6 +633,8 @@ public:
 	    	putText(cameraFeed,"LOOKING FOR CHECKERBOARD",Point(0,50),1,2,Scalar(0,0,255),2); 
 	    	imshow(windowName3,cameraFeed);
 	    	waitKey(30);
+
+
 	    } 
 	    else { // pattern status already changed 
 	    	if (counter < 1) 
@@ -658,6 +668,8 @@ public:
 	    		imgPts[1]=corners[board_w-1];
 	    		imgPts[2]=corners[(board_h-1)*board_w];
 	    		imgPts[3]=corners[(board_h-1)*board_w+board_w-1];
+
+
 	    		
 	    		//checkerboard_PXwidth = ((imgPts[1] - imgPts[0]) + (imgPts[1] - imgPts[0]))/2; 
 	    		//widthDif =  (imgPts[1] - imgPts[0]) - (imgPts[1] - imgPts[0]);
@@ -674,8 +686,11 @@ public:
 	
 	    	} else {	
 	
-		    		Homogeneous.at<double>(2,2) = birdseyeHeight;
-		    		warpPerspective(cameraFeed, birdseyeFeed, Homogeneous, cameraFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+	    		Homogeneous.at<double>(2,2) = birdseyeHeight;
+	    		warpPerspective(cameraFeed, birdseyeFeed, Homogeneous, cameraFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+	    		
+	    		calibrateCheckerboard();
+
 			}
 
 /*	    	circle(cameraFeed, imgPts[0], 9, Scalar(255,0,0),3);
@@ -693,7 +708,7 @@ public:
 
 	      // Show general color detection on HSV window
 	    	cvtColor(birdseyeFeed,HSV,COLOR_BGR2HSV);
-	    	createHSVTrackbars();
+//	    	createHSVTrackbars();
 	    	inRange(HSV,Scalar(H_MIN,S_MIN,V_MIN),Scalar(H_MAX,S_MAX,V_MAX),HSVthreshold);
 
 
@@ -776,7 +791,7 @@ public:
 
 	      // Create processing palate
 	      //putText(dialog_box, "text test", Point(0,50),1,2,Scalar(255),2);
-	      imshow(trackbar_window_name,dialog_box); 
+/*	      imshow(trackbar_window_name,dialog_box); 
 
 	      createTrackbar( "Min Threshold:", trackbar_window_name, &lowThreshold, max_lowThreshold);
 	      createTrackbar( "Erode Size:", trackbar_window_name, &erodeSize, max_erode+1);
@@ -785,7 +800,7 @@ public:
 	      createTrackbar( "Blur Sigma Size:", trackbar_window_name, &sigmaSize, max_sigma+1);
 	      createTrackbar( "Distortion Angle", trackbar_window_name, &distortionAngle, max_distortion+1);
 	      createTrackbar( "Birds Eye Height", trackbar_window_name, &birdseyeHeight, max_birdseye+1);
-
+*/
 	      // drawCheckerboardCorners
 	      //drawChessboardCorners(birdseyeFeed, patternsize, Mat(corners), patternfound);      
 
@@ -969,6 +984,7 @@ private:
 
 	ros::Publisher rgb_vehicle_pub;
 	ros::Publisher rgb_goal_pub;
+	ros::Publisher conv_fac_pub;
 
 	Mat background;
 	image_transport::Subscriber rgb_sub_;
@@ -978,10 +994,10 @@ private:
 	ros::Subscriber sub_vector_wp;
 
 
-	int checkerboard_height = 1;
-	int checkerboard_PXheight = 1;
-	int checkerboard_width = 1;
-	int checkerboard_PXwidth = 1;
+	double checkerboard_height = 1;
+	int checkerboard_PXheight = 80;
+	double checkerboard_width = 1;
+	int checkerboard_PXwidth = 140;
 
 	double height_factor, width_factor;
 	int downsample_factor; 

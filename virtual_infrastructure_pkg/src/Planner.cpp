@@ -30,6 +30,8 @@ ros::Publisher target_speed_pub;
 ros::Publisher target_wp_pub;
 ros::Subscriber sub_vehicle;
 ros::Subscriber sub_wp;
+ros::Subscriber sub_conv_fac;
+
 double radius;
 vector <double> p_i;
 vector <double> p_e;
@@ -57,7 +59,7 @@ double x_vehicle, y_vehicle, x_wp, y_wp;
 
 vector<Point> vector_wp;
 
-double conversion_factor;
+double conv_fac;
 
 
 void update_target_speed()
@@ -66,10 +68,14 @@ void update_target_speed()
     std_msgs::Float64 target_speed_msg;
     
     if (distance_to_target < 100) { // meter?? NEED TO CONVERT FROM PIXELS TO METERS
-        target_speed = target_speed*distance_to_target;
+        target_speed = 0.8*target_speed*(1 - (1/distance_to_target));
+    } else if (distance_to_target < 40) {
+        target_speed = 0;
     } else {
-      target_speed = 1.5*conversion_factor; // pixels to meter/second
+      target_speed = 50.0*conv_fac; // pixels to meter/second    
     }
+
+    ROS_INFO("distance_to_target: %f , target_speed: %f",  distance_to_target, target_speed);
 
     target_speed_msg.data = target_speed;
     //ROS_INFO("target_speed: %f", target_speed_msg.data);
@@ -134,6 +140,12 @@ void update_target_angle()
 
 }
 
+void convFacCallback (const std_msgs::Float64::ConstPtr& conv_fac_msg) 
+{
+    conv_fac = conv_fac_msg -> data;
+    ROS_INFO("conv_fac = %f" , conv_fac);
+}
+   
 void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
 {
     x_vehicle  = vehicle_pose_msg->x;
@@ -196,7 +208,8 @@ void waypointCallback (const geometry_msgs::PoseArray::ConstPtr& waypoint_pose_m
 
 int main(int argc, char **argv)
 {
-  conversion_factor = 1;
+  conv_fac = 1.0;
+  target_speed = 0.1;
   pi_bool = 0;  
   x_wp = 0;
   y_wp = 0;
@@ -218,6 +231,7 @@ int main(int argc, char **argv)
 
   sub_vehicle = n.subscribe("/vehicle_pose",20, &vehicleCallback);
   sub_wp = n.subscribe("/wp_pose",20, &waypointCallback);
+  sub_conv_fac = n.subscribe("/conv_fac",20, &convFacCallback);
 
   target_angle_pub = n.advertise<std_msgs::Float64>("/target_angle",2);
   target_speed_pub = n.advertise<std_msgs::Float64>("/target_speed",2);
