@@ -57,9 +57,9 @@ public:
 	occupancyGrid_pub = it_rgb.advertise("/occupancyGrid" , 1);
 	rgb_vehicle_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("vehicle_pose",2);
 	rgb_goal_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("goal_pose",2);
-	sub_target_wp = nh_rgb.subscribe("/target_wp",2, &RGBImageProcessor::targetwpCallback,this);
+/*	sub_target_wp = nh_rgb.subscribe("/target_wp",2, &RGBImageProcessor::targetwpCallback,this);
 	sub_vector_wp = nh_rgb.subscribe("/wp_pose",2, &RGBImageProcessor::vectorwpCallback,this);
-	sub_vector_wp = nh_rgb.subscribe("/target_angle",2, &RGBImageProcessor::targetAngleCallback,this);
+	sub_vector_wp = nh_rgb.subscribe("/target_angle",2, &RGBImageProcessor::targetAngleCallback,this);*/
 
 	// store launch params
 	//nh_rgb.param("checkerboard_width", checkerboard_width, -1);
@@ -157,15 +157,15 @@ public:
 		Scalar path_color = Scalar(0,255,0);
 		Scalar wp_color = Scalar(255,50,0);
 
-    	for (int i=0;i<size;i++)
+/*    	for (int i=0;i<size;i++)
     	{
     		circle(frame,vector_wp[i], 2, path_color,2);
     		ROS_INFO("wp:%i,%i",vector_wp[i].x,vector_wp[i].y);
 
-		}
+		} 
 		circle(frame,Point((int)x_target_wp, (int)y_target_wp), 3, wp_color,3);
 
-
+*/
 		for(int i =0; i<theObjects.size(); i++)
 	  	{ //for each object
 	    //draw current position
@@ -304,7 +304,7 @@ public:
 	    heading_point_polynomial_approximation.y = (int) round(pose_poly[pose_poly.size() - 1].y + LOS_RADIUS * sin(vehicle_angle_polynomial_approximation * CV_PI / 180.0));
 	    
 	    // Draw line between current location and heading point
-	    line(objectFeed, vehicle_pose, heading_point_polynomial_approximation, Scalar(0, 128, 255), HEADING_LINE_THICKNESS, 8, 0);
+	    //line(objectFeed, vehicle_pose, heading_point_polynomial_approximation, Scalar(0, 128, 255), HEADING_LINE_THICKNESS, 8, 0);
 	    
 	    // Use curve polynomial tangent angle
 	    angle = vehicle_angle_polynomial_approximation;
@@ -546,13 +546,13 @@ public:
 			vehicle_pose_msg.theta = vehicle_pose_msg.theta*CV_PI/180;
 			th = vehicle_pose_msg.theta;
 
-			circle(frame,Point(objects.at(0).getXPos(MEMORY_SIZE-1),objects.at(0).getYPos(MEMORY_SIZE-1)),LOS_RADIUS, Scalar(102, 178, 255));
+//			circle(frame,Point(objects.at(0).getXPos(MEMORY_SIZE-1),objects.at(0).getYPos(MEMORY_SIZE-1)),LOS_RADIUS, Scalar(102, 178, 255));
 
-			// draw target angle vector
+/*			// draw target angle vector
 			Point target_angle_endpoint;
 		    target_angle_endpoint.x = (int) round(vehicle_pose.x + LOS_RADIUS * cos(target_angle));
 		    target_angle_endpoint.y = (int) round(vehicle_pose.y + LOS_RADIUS * sin(target_angle));		    
-		    line(frame, vehicle_pose, target_angle_endpoint, Scalar(255, 128, 0), HEADING_LINE_THICKNESS, 8, 0);
+		    line(frame, vehicle_pose, target_angle_endpoint, Scalar(255, 128, 0), HEADING_LINE_THICKNESS, 8, 0);*/
 
 
 			ROS_INFO("vehicle pose: ( %f , %f ) : th = %f ",x,y,th);
@@ -565,15 +565,13 @@ public:
 			rgb_goal_pub.publish(goal_pose_msg); 
 		} else {};
 
-
-
 		drawObject(objects,frame, contours,hierarchy);
 		contours_prev = contours;
 		hierarchy_prev = hierarchy;
 
 	}
 
-	void targetAngleCallback (const std_msgs::Float64::ConstPtr& target_angle_msg) 
+/*	void targetAngleCallback (const std_msgs::Float64::ConstPtr& target_angle_msg) 
 	{
 		target_angle = target_angle_msg -> data;
 	    ROS_INFO("targetAngleCallback: ( %f )",target_angle);
@@ -595,7 +593,7 @@ public:
     	{
     		vector_wp.push_back(Point((int)vector_wp_msg->poses[i].position.x,(int)vector_wp_msg->poses[i].position.y));
 		}
-	}
+	}*/
 	
 	void rgbFeedCallback(const sensor_msgs::ImageConstPtr& msg)
 	{
@@ -631,7 +629,7 @@ public:
 			Size patternsize(8,6);
 	    	patternfound = findChessboardCorners(cameraFeed, patternsize,corners);  
 	    	putText(cameraFeed,"LOOKING FOR CHECKERBOARD",Point(0,50),1,2,Scalar(0,0,255),2); 
-	    	imshow(windowName3,cameraFeed);
+//	    	imshow(windowName3,cameraFeed);
 	    	waitKey(30);
 
 
@@ -806,7 +804,7 @@ public:
 
 	      // Show processed image
 	      //imshow(windowName2, HSVthreshold);
-          imshow(windowName3,objectFeed);
+          //imshow(windowName3,objectFeed);
 	      //imshow(windowName,objectFeed_thresh);
 	      //imshow(windowName4,birdseyeFeed);
 	      //imshow(windowName5,occupancyGrid);
@@ -917,7 +915,7 @@ private:
 	double S_BMIN = 100;
 	double S_BMAX = 198;
 	double V_BMIN = 119;
-	double V_BMAX = 229;
+	double V_BMAX = 255;
 
 	int H_GMIN = 0;
 	int H_GMAX = 75;
@@ -990,8 +988,8 @@ private:
 	image_transport::Subscriber rgb_sub_;
 	image_transport::Publisher rgb_pub_;
 	image_transport::Publisher occupancyGrid_pub;
-	ros::Subscriber sub_target_wp;
-	ros::Subscriber sub_vector_wp;
+/*	ros::Subscriber sub_target_wp;
+	ros::Subscriber sub_vector_wp;*/
 
 
 	double checkerboard_height = 1;

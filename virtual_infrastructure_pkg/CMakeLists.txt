@@ -207,6 +207,7 @@ add_executable(ground_station_therm_node src/ground_station_therm.cpp)
 add_executable(vehicle_odom src/Odom.cpp)
 add_executable(vehicle_planner src/Planner.cpp)
 add_executable(astar_planner src/Astar.cpp)
+add_executable(data_processor src/DataProcessor.cpp)
 
 ## Specify libraries to link a library or executable target against
  target_link_libraries(ground_station_rgb_node 
@@ -239,6 +240,12 @@ add_executable(astar_planner src/Astar.cpp)
    ${PROJECT_NAME}
  )
 
+ target_link_libraries ( data_processor
+   ${OpenCV_LIBRARIES}
+   ${catkin_LIBRARIES}
+   ${PROJECT_NAME}
+ )
+
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 # add_dependencies(virtual_infrastructure_pkg_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
@@ -247,3 +254,4 @@ add_dependencies(ground_station_therm_node src/ground_station_therm.cpp)
 add_dependencies(vehicle_odom src/Odom.cpp)
 add_dependencies(vehicle_planner src/Planner.cpp)
 add_dependencies(astar_planner src/Astar.cpp)
+add_dependencies(data_processor src/DataProcessor.cpp)
