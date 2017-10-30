@@ -3,7 +3,6 @@
 #include <nav_msgs/Odometry.h>
 #include <std_msgs/Float64.h>
 #include <geometry_msgs/Pose2D.h>
-#include <virtual_infrastructure_pkg/vehicle_pose.h>
 
 
 class Odom
