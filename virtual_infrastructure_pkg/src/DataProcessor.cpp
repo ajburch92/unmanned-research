@@ -35,21 +35,29 @@
 
 using namespace std;
 using namespace cv;
+const int scale_factor = 4;
 
 const string windowName = "Visualizer";
 
 vector<Point> goal_points;
-
+Point p;
 
 void onMouse( int evt, int x, int y, int flags, void *param) 
 {
 	if (evt == CV_EVENT_LBUTTONDOWN) 
 	{
-		vector<Point>* ptPtr = (vector<Point>*)param;
-		ptPtr->push_back(Point(x,y));
+		//Point*p = (Point*)ptr;
+		//p->x = x;
+		//p->y = y;
 
+		vector<Point>* ptPtr = (vector<Point>*)param;
+		ptPtr->push_back(Point(x,y) * scale_factor);
+
+	} else if (evt == CV_EVENT_RBUTTONDOWN)
+	{
+		goal_points.clear();
 	}
-			ROS_INFO("left click registered");
+	ROS_INFO("left click registered");
 }
 
 //Data Processor Class ////////////////////////////
@@ -64,7 +72,7 @@ public:
 	ros::NodeHandle nh;
 	image_transport::ImageTransport it_nh(nh);
 	pub_viz = it_nh.advertise("/visualization",1);
-	pub_goal_out = nh.advertise<geometry_msgs::Pose2D>("/goal_pose_out",1);
+	pub_goal_out = nh.advertise<geometry_msgs::PoseArray>("/goal_pose_out",1);
 
 
 	sub_rgb = it_nh.subscribe("/ground_station_rgb",1, &DataProcessor::rgbFeedCallback, this); 
@@ -73,7 +81,7 @@ public:
 	sub_vector_wp = nh.subscribe("/target_angle",2, &DataProcessor::targetAngleCallback,this);
 	sub_conv_fac = nh.subscribe("/conv_fac",2, &DataProcessor::convFacCallback,this);
 	sub_vehicle = nh.subscribe("/vehicle_pose",20, &DataProcessor::vehicleCallback, this);
-    sub_goal = nh.subscribe("/goal_pose",20, &DataProcessor::goalCallback, this);
+    //sub_goal = nh.subscribe("/goal_pose",20, &DataProcessor::goalCallback, this);
 
 
 	// Set each element in history to 0
@@ -81,7 +89,6 @@ public:
 	    vehicle_pose_history[i] = Point(0, 0);
 	}
 
-	namedWindow(windowName, WINDOW_AUTOSIZE);
 	}
 
 	~DataProcessor()
@@ -156,7 +163,7 @@ public:
 
 
 
-	void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg) 
+/*	void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg) 
 	{
 	    double xtemp, ytemp;
 	    xtemp = goal_pose_msg->x;
@@ -166,22 +173,31 @@ public:
 	    goal_pose.y = (int)ytemp;
 
 	    ROS_INFO("goalCallback: ( %i , %i )",goal_pose.x,goal_pose.y);
-	}
+	}*/
 
 	void updateGoal() 
 	{
 		int size = goal_points.size();
-		goal_pose_out.x = goal_points[size-1].x*scale_factor;
-		goal_pose_out.y = goal_points[size-1].y*scale_factor;
 
-		geometry_msgs::Pose2D goal_pose_out_msg;
-		goal_pose_out_msg.x = goal_pose_out.x*scale_factor;
-		goal_pose_out_msg.y = goal_pose_out.y*scale_factor;
+		geometry_msgs::PoseArray poseArray;
+	    poseArray.poses.clear();
+	    poseArray.header.stamp=ros::Time::now();
+
+		geometry_msgs::Pose goal_pose_out_msg;
+
+		for (int i=0; i<size; i++) 
+		{
+			goal_pose_out_msg.position.x = goal_points[i].x;
+	        goal_pose_out_msg.position.y = goal_points[i].y;
+
+	        poseArray.poses.push_back(goal_pose_out_msg);
+
+		}
 		
-		ROS_INFO("goal set to (%i, %i) ", (int)goal_pose_out_msg.x, (int)goal_pose_out_msg.y);
-
-		pub_goal_out.publish(goal_pose_out_msg);
-
+		ROS_INFO("subgoal set to (%f, %f), goal vector size: %i ", poseArray.poses[0].position.x, poseArray.poses[0].position.y, size);
+		
+		pub_goal_out.publish(poseArray); 
+		
 	}
 
 	void drawData(Mat &frame)
@@ -260,11 +276,11 @@ public:
 		
 		downsampleFrame(frame);
 
-        imshow(windowName,frame);
-        waitKey(0);
+        imshow(windowName,scaledFrame);
+        waitKey(30);
 
         //publish viz
-	    img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, frame);
+	    img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, scaledFrame);
 	    img_bridge.toImageMsg(img_msg); // from cv _bridge to sensor_msgs::Image
 	    pub_viz.publish(img_msg); 
 
@@ -309,14 +325,12 @@ private:
 
 	double conv_fac;
 
-	int scale_factor = 4;
 	int downsample_factor = 4;
 	int scaledFrame_height;
 	int scaledFrame_width;
 
 	Point vehicle_pose;
 	Point goal_pose;
-	Point goal_pose_out;
 	Point vehicle_heading;
 
 };
@@ -329,9 +343,13 @@ private:
 
 int main(int argc, char** argv)
 {
+
 	ros::init(argc, argv, "data_processor_node");
 	ROS_INFO("launching data_processor_node");
-   	cv::setMouseCallback(windowName,onMouse,(void*)&goal_points);
+
+	namedWindow(windowName);
+   	cv::setMouseCallback(windowName,onMouse,(void*)(&goal_points));
+
 	DataProcessor dp;
 	
 	ros::spin();

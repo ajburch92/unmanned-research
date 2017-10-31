@@ -155,24 +155,6 @@ void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg)
     double euclidean_d=0;
     int sz = vector_wp.size();
 
-    /*while ((euclidean_d < LOS_RADIUS) || (i<sz))
-    {
-      euclidean_d = sqrt(((x_vehicle-vector_wp[i].x)*(x_vehicle-vector_wp[i].x)) + ((y_vehicle-vector_wp[i].y)*(y_vehicle-vector_wp[i].y)));
-      i++;
-      ROS_INFO("waypoint( %i , %i )",vector_wp[i].x,vector_wp[i].y);
-
-    }
-
-    x_wp  = vector_wp[i].x;
-    y_wp = vector_wp[i].y;
-
-    ROS_INFO("waypointTarget: ( %f , %f ), waypointDistance: %f",x_wp,y_wp,euclidean_d);
-    
-    geometry_msgs::Pose2D target_wp_msg;
-    target_wp_msg.x = x_wp;
-    target_wp_msg.y = y_wp;
-    target_wp_pub.publish(target_wp_msg); 
-*/
     update_target_speed();
     update_target_angle();
 

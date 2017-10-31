@@ -257,12 +257,10 @@ void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg)
     xA  = (int)xtemp;
     yA = (int)ytemp;
 
-    ROS_INFO("vehicleCallback: ( %i , %i )",xA,yA);
+    ROS_INFO("vehicleCallback (xA, yA): ( %i , %i )",xA,yA);
 }
 
-
-
-void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg) 
+/*void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg) 
 {
     double xtemp, ytemp;
     xtemp = goal_pose_msg->x;
@@ -270,10 +268,46 @@ void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg)
     //translate to downsampled coordinates
     xtemp = xtemp / scale_factor;
     ytemp = ytemp / scale_factor;
+    //xB  = (int)xtemp;
+    //yB = (int)ytemp;
+
+    ROS_INFO("goalCallback: ( %i , %i )",xB,yB);
+}*/
+
+void goal_outCallback (const geometry_msgs::PoseArray::ConstPtr& goal_out_pose_msg) 
+{
+    double xtemp, ytemp;
+    int sz = goal_out_pose_msg->poses.size();
+    int i = 0;
+    xtemp = goal_out_pose_msg->poses[i].position.x / scale_factor;
+    ytemp = goal_out_pose_msg->poses[i].position.y / scale_factor;
     xB  = (int)xtemp;
     yB = (int)ytemp;
 
-    ROS_INFO("goalCallback: ( %i , %i )",xB,yB);
+    ROS_INFO("goal_outCallback (xB, yB): ( %i , %i )",xB,yB);
+
+
+    /*int i = 0;
+  	double euclidean_d=0;
+  	int sz = waypoint_pose_msg->poses.size();
+    while ((euclidean_d <= LOS_RADIUS) && (i<(sz-1)))
+    {
+      euclidean_d = sqrt(((x_vehicle-waypoint_pose_msg->poses[i].position.x)*(x_vehicle-waypoint_pose_msg->poses[i].position.x)) + ((y_vehicle-waypoint_pose_msg->poses[i].position.y)*(y_vehicle-waypoint_pose_msg->poses[i].position.y)));
+      i++;
+      //ROS_INFO("waypoint( %f , %f ), waypointDistance: %f",waypoint_pose_msg->poses[i].position.x,waypoint_pose_msg->poses[i].position.y,euclidean_d);
+      //vector_wp[i] = Point(waypoint_pose_msg->poses[i].position.x, waypoint_pose_msg->poses[i].position.y);
+    }
+
+    x_wp  = waypoint_pose_msg->poses[i].position.x;
+    y_wp = waypoint_pose_msg->poses[i].position.y;
+
+    ROS_INFO("waypointTarget: ( %f , %f ), waypointDistance: %f",x_wp,y_wp,euclidean_d);
+    
+    geometry_msgs::Pose2D target_wp_msg;
+    target_wp_msg.x = x_wp;
+    target_wp_msg.y = y_wp;
+    target_wp_pub.publish(target_wp_msg); 
+*/
 }
 
 void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg) 
@@ -441,8 +475,9 @@ int main(int argc, char **argv)
     // subscibe to vision outputs
     image_transport::ImageTransport it_astar(node);
 	image_transport::Subscriber sub_occupancyGrid = it_astar.subscribe("/occupancyGrid",1, &occupancyGridCallback); // use image_rect
-    ros::Subscriber sub_vehicle = node.subscribe("/vehicle_pose",20, &vehicleCallback);
-    ros::Subscriber sub_goal = node.subscribe("/goal_pose",20, &goalCallback);
+    ros::Subscriber sub_vehicle = node.subscribe("/vehicle_pose",2, &vehicleCallback);
+    //ros::Subscriber sub_goal = node.subscribe("/goal_pose",2, &goalCallback);
+    ros::Subscriber sub_goal_out = node.subscribe("/goal_pose_out",2, &goal_outCallback);
 
     // publish topics for the output visualization and for the next waypoint for the low level controller.
     path_pub = it_astar.advertise("/pathGrid",1);

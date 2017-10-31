@@ -629,7 +629,7 @@ public:
 			Size patternsize(8,6);
 	    	patternfound = findChessboardCorners(cameraFeed, patternsize,corners);  
 	    	putText(cameraFeed,"LOOKING FOR CHECKERBOARD",Point(0,50),1,2,Scalar(0,0,255),2); 
-//	    	imshow(windowName3,cameraFeed);
+	    	imshow(windowName3,cameraFeed);
 	    	waitKey(30);
 
 
@@ -804,7 +804,7 @@ public:
 
 	      // Show processed image
 	      //imshow(windowName2, HSVthreshold);
-          //imshow(windowName3,objectFeed);
+          imshow(windowName3,objectFeed);
 	      //imshow(windowName,objectFeed_thresh);
 	      //imshow(windowName4,birdseyeFeed);
 	      //imshow(windowName5,occupancyGrid);
