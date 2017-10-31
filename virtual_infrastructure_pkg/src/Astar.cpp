@@ -286,28 +286,13 @@ void goal_outCallback (const geometry_msgs::PoseArray::ConstPtr& goal_out_pose_m
 
     ROS_INFO("goal_outCallback (xB, yB): ( %i , %i )",xB,yB);
 
+    // subgoal decision
+    // if none, wait
+    // if goal exists, and tracking, go to first waypoint
+    // when close, go to next
+    // if no next, stop
+    // if none, stop
 
-    /*int i = 0;
-  	double euclidean_d=0;
-  	int sz = waypoint_pose_msg->poses.size();
-    while ((euclidean_d <= LOS_RADIUS) && (i<(sz-1)))
-    {
-      euclidean_d = sqrt(((x_vehicle-waypoint_pose_msg->poses[i].position.x)*(x_vehicle-waypoint_pose_msg->poses[i].position.x)) + ((y_vehicle-waypoint_pose_msg->poses[i].position.y)*(y_vehicle-waypoint_pose_msg->poses[i].position.y)));
-      i++;
-      //ROS_INFO("waypoint( %f , %f ), waypointDistance: %f",waypoint_pose_msg->poses[i].position.x,waypoint_pose_msg->poses[i].position.y,euclidean_d);
-      //vector_wp[i] = Point(waypoint_pose_msg->poses[i].position.x, waypoint_pose_msg->poses[i].position.y);
-    }
-
-    x_wp  = waypoint_pose_msg->poses[i].position.x;
-    y_wp = waypoint_pose_msg->poses[i].position.y;
-
-    ROS_INFO("waypointTarget: ( %f , %f ), waypointDistance: %f",x_wp,y_wp,euclidean_d);
-    
-    geometry_msgs::Pose2D target_wp_msg;
-    target_wp_msg.x = x_wp;
-    target_wp_msg.y = y_wp;
-    target_wp_pub.publish(target_wp_msg); 
-*/
 }
 
 void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg) 
@@ -389,11 +374,12 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
             grid[x][y]=3;
 
             // fill wp vector
-
-
             wp_pose_msg.position.x = double(x*scale_factor);
             wp_pose_msg.position.y = double(y*scale_factor); // change to doubles
-            poseArray.poses.push_back(wp_pose_msg);
+            poseArray.poses.push_back(wp_pose_msg); 
+
+            // pushback if so many steps have passed? 
+            //could hard code coarser path here, otherwise look at resolution factor tree, or crop/resize
 
             x_prev = x;
             y_prev = y;

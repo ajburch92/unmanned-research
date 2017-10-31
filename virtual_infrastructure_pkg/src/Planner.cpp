@@ -166,6 +166,8 @@ void waypointCallback (const geometry_msgs::PoseArray::ConstPtr& waypoint_pose_m
   int i = 0;
   double euclidean_d=0;
   int sz = waypoint_pose_msg->poses.size();
+  if (sz > 0) 
+  {
     while ((euclidean_d <= LOS_RADIUS) && (i<(sz-1)))
     {
       euclidean_d = sqrt(((x_vehicle-waypoint_pose_msg->poses[i].position.x)*(x_vehicle-waypoint_pose_msg->poses[i].position.x)) + ((y_vehicle-waypoint_pose_msg->poses[i].position.y)*(y_vehicle-waypoint_pose_msg->poses[i].position.y)));
@@ -183,6 +185,9 @@ void waypointCallback (const geometry_msgs::PoseArray::ConstPtr& waypoint_pose_m
     target_wp_msg.x = x_wp;
     target_wp_msg.y = y_wp;
     target_wp_pub.publish(target_wp_msg); 
+  } // else set target speed to zero? wait for clear path?
+
+  // update vehicle planner with starting and end points between subgoals/waypoint goals.
 
 }
 

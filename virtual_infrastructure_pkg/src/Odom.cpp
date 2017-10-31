@@ -77,6 +77,8 @@ public:
 		odom_pub.publish(odom);
 
 		last_time = current_time;
+		x_prev = x;
+		y_prev = y;
 
 	}
 

@@ -721,7 +721,7 @@ public:
 	    	//cvtColor(HSV,HSV,COLOR_BGR2HSV);
 
 
-	    	inRange(HSV,Scalar(H_BMIN,S_BMIN,V_BMIN),Scalar(H_BMAX,S_BMAX,V_BMAX),BLUEthreshold);
+//	    	inRange(HSV,Scalar(H_BMIN,S_BMIN,V_BMIN),Scalar(H_BMAX,S_BMAX,V_BMAX),BLUEthreshold);
 	    	//cvtColor(HSVcheck,HSVcheck,CV_HSV2BGR);
 	    	//threshold(BLUEthreshold, BLUEthreshold, 0, 255, cv::THRESH_BINARY_INV);
 	    	//HSV.copyTo(HSV,BLUEthreshold);
@@ -731,12 +731,12 @@ public:
 
 
 	      // morphological operations on HSVobjects
-	    	morphologicalOps(BLUEthreshold, erodeSize, dilateSize);
+//	    	morphologicalOps(BLUEthreshold, erodeSize, dilateSize);
 	    	//morphologicalOps(GREENthreshold);
 	    	morphologicalOps(YELLOWthreshold, erodeSize, dilateSize);
 	    	//morphologicalOps(REDthreshold);
-	    	HSVobjects = YELLOWthreshold + BLUEthreshold ;
-
+//	    	HSVobjects = YELLOWthreshold + BLUEthreshold ;
+	    	HSVobjects = YELLOWthreshold;
 	    	//SVobjects = BLUEthreshold + GREENthreshold + YELLOWthreshold + REDthreshold ;
 
 	      // isolate objects from HSVobjects
@@ -756,7 +756,7 @@ public:
 	      // either object detection or tracking mode
 	    	if (tracking_status == FALSE)
 	    	{
-	    		detectObjects(BLUEthreshold,objectFeed,"goal");
+	    		//detectObjects(BLUEthreshold,objectFeed,"goal");
 	    		//detectObjects(GREENthreshold,objectFeed,"green");
 	    		detectObjects(YELLOWthreshold,objectFeed,"vehicle");
 	    		//detectObjects(REDthreshold,objectFeed,"red");
@@ -775,7 +775,7 @@ public:
 
 	      	detectObjects(occupancyGrid,objectFeed, " ");
 
-	      	trackObjects(BLUEthreshold,objectFeed,objects_blue,"goal");
+	      	//trackObjects(BLUEthreshold,objectFeed,objects_blue,"goal");
 	      	//trackObjects(GREENthreshold,objectFeed,objects_green,"green");
 	      	trackObjects(YELLOWthreshold,objectFeed,objects_yellow,"vehicle");
 	      	//trackObjects(REDthreshold,objectFeed,objects_red,"red");
