@@ -799,7 +799,7 @@ public:
 				//detectObjects(GREENthreshold,objectFeed,"green");
 				detectObjects(YELLOWthreshold,objectFeed,"vehicle");
 				//detectObjects(REDthreshold,objectFeed,"red");
-				putText(objectFeed,"DISARMED : DETECTING VEHICLE",Point(0,50),1,2,Scalar(0,0,255),2); 
+				putText(objectFeed,"DISARMED : DETECTING VEHICLE",Point(0,50),1,1.5,Scalar(0,0,255),2); 
 
 				// Set each element in history to 0
 				for (int i = 0; i < VEHICLE_POSE_HISTORY_SIZE; i++) {
