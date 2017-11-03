@@ -1,0 +1,9 @@
+<launch>  
+
+  <node pkg="virtual_infrastructure_pkg"
+        type="data_processor"
+        name="data_processor">
+  </node>
+
+</launch>
+

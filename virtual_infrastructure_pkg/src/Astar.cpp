@@ -23,14 +23,16 @@
 #include <opencv2/video/background_segm.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
 
+#define LOS_RADIUS 100 //currently in pixels
+
 using namespace std;
 using namespace cv;
 
 //m and n should start as camera resolution size
-int scale_factor = 4;
-//res initially 1288x964
-const int n=322; // horizontal size of the grid  CAN I CHECK CONFIG FILE FOR THIS VALUE
-const int m=241; // vertical size size of the grid
+int scale_factor = 8; // change this to a launch file paramerter. this is the downsampling applied to the occupancy grid.
+//res initially 1288x964 then resize to 1280x960, reduced to 160x120 (8x)
+const int n=160; // horizontal size of the grid  CAN I CHECK CONFIG FILE FOR THIS VALUE
+const int m=120; // vertical size size of the grid
 static int grid[n][m];
 static int closed_nodes_grid[n][m]; // grid of closed (tried-out) nodes
 static int open_nodes_grid[n][m]; // grid of open (not-yet-tried) nodes
@@ -279,12 +281,20 @@ void goal_outCallback (const geometry_msgs::PoseArray::ConstPtr& goal_out_pose_m
     double xtemp, ytemp;
     int sz = goal_out_pose_msg->poses.size();
     int i = 0;
-    xtemp = goal_out_pose_msg->poses[i].position.x / scale_factor;
-    ytemp = goal_out_pose_msg->poses[i].position.y / scale_factor;
+    double euclidean_d=0;
+
+    while ((euclidean_d <= LOS_RADIUS) && (i<(sz-1)))
+    {
+      euclidean_d = sqrt(((((xA*scale_factor)-goal_out_pose_msg->poses[i].position.x)*((xA*scale_factor)-goal_out_pose_msg->poses[i].position.x)) + (((yA*scale_factor)-goal_out_pose_msg->poses[i].position.y)*((yA*scale_factor)-goal_out_pose_msg->poses[i].position.y))));
+      i++;
+    }
+    // keep at ZERO till debugged
+    xtemp = goal_out_pose_msg->poses[0].position.x / scale_factor;
+    ytemp = goal_out_pose_msg->poses[0].position.y / scale_factor;
     xB  = (int)xtemp;
     yB = (int)ytemp;
 
-    ROS_INFO("goal_outCallback (xB, yB): ( %i , %i )",xB,yB);
+    ROS_INFO("goal_outCallback (xB, yB): ( %i , %i ),  subgoal_distance: %f",xB,yB,euclidean_d);
 
     // subgoal decision
     // if none, wait
@@ -424,8 +434,6 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
 
     ROS_INFO("poseArray published");
 	wp_pub.publish(poseArray); 
-
-    // increase occupancy grid resolution
     
     occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, occupancyGrid);
     occupancy_bridge.toImageMsg(occupancyGrid_msg);

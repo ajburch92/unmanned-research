@@ -15,6 +15,7 @@
 #include <geometry_msgs/Pose2D.h>
 #include <geometry_msgs/PoseArray.h>
 #include <std_msgs/Float64.h>
+#include <std_msgs/Int8.h>
 
 // opencv
 #include <opencv2/opencv.hpp>
@@ -28,7 +29,7 @@
 #include <iostream>
 #include <vector>
 #include <deque>
-#include <math.h>
+#include <math.h>edd
 #include <stdio.h>
 //object class
 #include "Object.h"
@@ -57,9 +58,10 @@ public:
 	occupancyGrid_pub = it_rgb.advertise("/occupancyGrid" , 1);
 	rgb_vehicle_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("vehicle_pose",2);
 	rgb_goal_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("goal_pose",2);
+	key_cmd_sub = nh_rgb.subscribe("/key_cmd" , 2 , &RGBImageProcessor::keyCallback, this);
 /*	sub_target_wp = nh_rgb.subscribe("/target_wp",2, &RGBImageProcessor::targetwpCallback,this);
 	sub_vector_wp = nh_rgb.subscribe("/wp_pose",2, &RGBImageProcessor::vectorwpCallback,this);
-	sub_vector_wp = nh_rgb.subscribe("/target_angle",2, &RGBImageProcessor::targetAngleCallback,this);*/
+	sub_target_angle = nh_rgb.subscribe("/target_angle",2, &RGBImageProcessor::targetAngleCallback,this);*/
 
 	// store launch params
 	//nh_rgb.param("checkerboard_width", checkerboard_width, -1);
@@ -88,6 +90,12 @@ public:
 		std::stringstream ss;
 		ss << number;
 		return ss.str();
+	}
+
+	void keyCallback (const std_msgs::Int8::ConstPtr& key_cmd_msg) 
+	{
+		key_cmd = key_cmd_msg -> data;
+	    ROS_INFO("key_cmd: ( %i )",key_cmd);
 	}
 
 
@@ -126,10 +134,10 @@ public:
 
 	void downsampleGrid(Mat grid) {
 		gridDown = grid;
-		downsample_factor = 4;
-		Size size(322,241);
+		scale_factor = 8; // this may not work for all resolutions. this value needs to match the value in astar. retrive from param launch file.
+		Size size(resizedFeed.cols / scale_factor , resizedFeed.rows / scale_factor); // this should be 160 x 120 
 		resize(grid,gridDown,size);
-		//pyrDown( grid, gridDown, Size( grid.cols/downsample_factor, grid.rows/downsample_factor ) );
+		//pyrDown( grid, gridDown, Size( grid.cols/scale_factor, grid.rows/scale_factor ) );
 
 		//get size
 		gridDown_height = gridDown.rows ;
@@ -137,8 +145,13 @@ public:
 
 		ROS_INFO("downsampled occupancy grid height = %i" , gridDown_height);
 		ROS_INFO("downsampled occupancy grid width = %i" , gridDown_width);
+	}
 
-
+	void resizeFrame(Mat frame) {
+		resizedFeed = frame;
+		Size size(1280,960); // original resolution : 1288x964
+		resize(frame,resizedFeed,size);
+		ROS_INFO("resizedFedd : %i x %i" , resizedFeed.cols, resizedFeed.rows);
 	}
 
 	void drawObject(vector<Object> theObjects, Mat &frame, vector< vector<Point> > contours, vector<Vec4i> hierarchy)
@@ -619,17 +632,19 @@ public:
 	    header.stamp = ros::Time::now(); // time
 	    cameraFeed = rgb_cv_ptr -> image;
 
+	    resizeFrame(cameraFeed);
+
 	    dialog_box = Mat::zeros(100,400,CV_8UC3);
 
-	    //cameraFeed.copyTo(threshold);
+	    //resizedFeed .copyTo(threshold);
 
 	    if (patternfound < 1) 
 	    {
 	    	Size board_sz(board_w, board_h);
 			Size patternsize(8,6);
-	    	patternfound = findChessboardCorners(cameraFeed, patternsize,corners);  
-	    	putText(cameraFeed,"LOOKING FOR CHECKERBOARD",Point(0,50),1,2,Scalar(0,0,255),2); 
-	    	imshow(windowName3,cameraFeed);
+	    	patternfound = findChessboardCorners(resizedFeed , patternsize,corners);  
+	    	putText(resizedFeed ,"LOOKING FOR CHECKERBOARD",Point(0,50),1,2,Scalar(0,0,255),2); 
+	    	//imshow(windowName3,resizedFeed );
 	    	waitKey(30);
 
 
@@ -637,7 +652,7 @@ public:
 	    else { // pattern status already changed 
 	    	if (counter < 1) 
 	    	{
-	    		cvtColor(cameraFeed, grayFeed, COLOR_BGR2GRAY);
+	    		cvtColor(resizedFeed , grayFeed, COLOR_BGR2GRAY);
 	    		cornerSubPix(grayFeed, corners, Size(11,11),Size(-1,-1), TermCriteria( cv::TermCriteria::EPS | cv::TermCriteria::COUNT, 30, 0.1));
 
 	    		objPts[0].x=0;
@@ -657,7 +672,7 @@ public:
 	    		Homogeneous = getPerspectiveTransform(objPts, imgPts);
 
 	    		Homogeneous.at<double>(2,2) = birdseyeHeight;
-	    		warpPerspective(cameraFeed, birdseyeFeed, Homogeneous, cameraFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+	    		warpPerspective(resizedFeed , birdseyeFeed, Homogeneous, resizedFeed .size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 
 	    		cvtColor(birdseyeFeed, birdgrayFeed, COLOR_BGR2GRAY);
 	    		//cornerSubPix(birdgrayFeed, transCorners, Size(11,11),Size(-1,-1), TermCriteria( cv::TermCriteria::EPS | cv::TermCriteria::COUNT, 30, 0.1));
@@ -677,7 +692,7 @@ public:
 				int heightDif = 1;
 		    	Homogeneous.at<double>(2,2) = birdseyeHeight;						
 		    	ROS_INFO("heightDif = %i" , heightDif);
-		    	warpPerspective(cameraFeed, birdseyeFeed, Homogeneous, cameraFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+		    	warpPerspective(resizedFeed , birdseyeFeed, Homogeneous, resizedFeed .size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 		    	ROS_INFO("widthDif = %i" , widthDif); 
 			
 	    		calibrateCheckerboard();
@@ -685,16 +700,16 @@ public:
 	    	} else {	
 	
 	    		Homogeneous.at<double>(2,2) = birdseyeHeight;
-	    		warpPerspective(cameraFeed, birdseyeFeed, Homogeneous, cameraFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+	    		warpPerspective(resizedFeed , birdseyeFeed, Homogeneous, resizedFeed .size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 	    		
 	    		calibrateCheckerboard();
 
 			}
 
-/*	    	circle(cameraFeed, imgPts[0], 9, Scalar(255,0,0),3);
-	    	circle(cameraFeed, imgPts[1], 9, Scalar(0,255,0),3);
-	    	circle(cameraFeed, imgPts[2], 9, Scalar(0,0,255),3);
-	    	circle(cameraFeed, imgPts[3], 9, Scalar(0,255,255),3);*/
+/*	    	circle(resizedFeed , imgPts[0], 9, Scalar(255,0,0),3);
+	    	circle(resizedFeed , imgPts[1], 9, Scalar(0,255,0),3);
+	    	circle(resizedFeed , imgPts[2], 9, Scalar(0,0,255),3);
+	    	circle(resizedFeed , imgPts[3], 9, Scalar(0,255,255),3);*/
 
 	    	circle(birdseyeFeed, imgPts[0], 9, Scalar(255,0,0),3);
 	    	circle(birdseyeFeed, imgPts[1], 9, Scalar(0,255,0),3);
@@ -754,36 +769,51 @@ public:
 	        objectFeed += HSVoccupancyGrid;
 
 	      // either object detection or tracking mode
-	    	if (tracking_status == FALSE)
-	    	{
-	    		//detectObjects(BLUEthreshold,objectFeed,"goal");
-	    		//detectObjects(GREENthreshold,objectFeed,"green");
-	    		detectObjects(YELLOWthreshold,objectFeed,"vehicle");
-	    		//detectObjects(REDthreshold,objectFeed,"red");
-	    		putText(birdseyeFeed,"DETECTING OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
+	        switch (key_cmd)
+	        {
+		    	case 1 :
+			    	if (tracking_status == FALSE)
+			    	{
+			    		//detectObjects(BLUEthreshold,objectFeed,"goal");
+			    		//detectObjects(GREENthreshold,objectFeed,"green");
+			    		detectObjects(YELLOWthreshold,objectFeed,"vehicle");
+			    		//detectObjects(REDthreshold,objectFeed,"red");
+			    		putText(birdseyeFeed,"DETECTING OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
 
-	            // Set each element in history to 0
-	            for (int i = 0; i < VEHICLE_POSE_HISTORY_SIZE; i++) {
-	                vehicle_pose_history[i] = Point(0, 0);
-				}
+			            // Set each element in history to 0
+			            for (int i = 0; i < VEHICLE_POSE_HISTORY_SIZE; i++) {
+			                vehicle_pose_history[i] = Point(0, 0);
+						}
 
-	    	} 
-	      else // tracking mode turned on
-	      {
-	      	// update pointer
-	      	update_pose_history();
+			    	} 
+					else // tracking mode turned on
+					{
+						// update pointer
+						update_pose_history();
 
-	      	detectObjects(occupancyGrid,objectFeed, " ");
+						detectObjects(occupancyGrid,objectFeed, " ");
 
-	      	//trackObjects(BLUEthreshold,objectFeed,objects_blue,"goal");
-	      	//trackObjects(GREENthreshold,objectFeed,objects_green,"green");
-	      	trackObjects(YELLOWthreshold,objectFeed,objects_yellow,"vehicle");
-	      	//trackObjects(REDthreshold,objectFeed,objects_red,"red");
-	      	putText(birdseyeFeed,"TRACKING OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
-
-	      }
+						//trackObjects(BLUEthreshold,objectFeed,objects_blue,"goal");
+						//trackObjects(GREENthreshold,objectFeed,objects_green,"green");
+						trackObjects(YELLOWthreshold,objectFeed,objects_yellow,"vehicle");
+						//trackObjects(REDthreshold,objectFeed,objects_red,"red");
+						putText(birdseyeFeed,"TRACKING OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
 
 
+					}
+ 			    	ROS_INFO ("case 1 key_cmd");
+
+			      break;
+
+			    case 2 :
+
+			    	pMOG = new BackgroundSubtractorMOG();
+			    	ROS_INFO ("case 2 key_cmd");
+			    	break;
+			    
+			    default : 
+			    	break;
+			}
 	      // downsample objectFeed to get occupancy grid
 		  downsampleGrid(occupancyGrid);
 
@@ -804,31 +834,13 @@ public:
 
 	      // Show processed image
 	      //imshow(windowName2, HSVthreshold);
-          imshow(windowName3,objectFeed);
+          //imshow(windowName3,objectFeed);
 	      //imshow(windowName,objectFeed_thresh);
 	      //imshow(windowName4,birdseyeFeed);
 	      //imshow(windowName5,occupancyGrid);
 	      //imshow(windowName6,fgMaskMOG);
 
-	      char k = (char) cv::waitKey(30); //wait for esc key
-	      //if(k == 27) break;
-	      if(k== ' ') 
-	      {
-	      	if (tracking_status == TRUE)
-	      	{
-	      		tracking_status = FALSE;
-	      		counter = 0;
-	      	}
-	      	else
-	      	{
-	      		tracking_status = TRUE;
-	      		counter = 0;
-	      	}
-	      } 
-	      else if (k==27)
-	      {
-	      	pMOG = new BackgroundSubtractorMOG();
-	      }
+
 
 	      // Output modified video stream
 	      img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, objectFeed);
@@ -851,6 +863,7 @@ private:
 
 	// generate Mats
 	Mat cameraFeed;
+	Mat resizedFeed;
 	Mat objectFeed;
 	Mat grayFeed;
 	Mat Homogeneous;
@@ -988,6 +1001,8 @@ private:
 	image_transport::Subscriber rgb_sub_;
 	image_transport::Publisher rgb_pub_;
 	image_transport::Publisher occupancyGrid_pub;
+
+	ros::Subscriber key_cmd_sub;
 /*	ros::Subscriber sub_target_wp;
 	ros::Subscriber sub_vector_wp;*/
 
@@ -998,7 +1013,7 @@ private:
 	int checkerboard_PXwidth = 140;
 
 	double height_factor, width_factor;
-	int downsample_factor; 
+	int scale_factor; 
 
 	int gridDown_height;
 	int gridDown_width;
@@ -1017,6 +1032,8 @@ private:
 	Point * vehicle_pose_history = new Point[VEHICLE_POSE_HISTORY_SIZE];
 	
 	int vehicle_pose_history_pointer;
+
+	int key_cmd = 0;
 
 };
 

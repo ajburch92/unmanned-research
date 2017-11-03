@@ -12,6 +12,7 @@
 
 #include <geometry_msgs/Pose2D.h>
 #include <geometry_msgs/PoseArray.h>
+#include <std_msgs/Int8.h>
 #include <std_msgs/Float64.h>
 
 // opencv
@@ -35,29 +36,29 @@
 
 using namespace std;
 using namespace cv;
-const int scale_factor = 4;
+const int scale_factor = 2; // this needs to be the same as in the rgb node. change to launch file parameter. 
+// this may not work for all resolutions. this value needs to match the value in astar. retrive from param launch file.
+
 
 const string windowName = "Visualizer";
 
 vector<Point> goal_points;
-Point p;
 
 void onMouse( int evt, int x, int y, int flags, void *param) 
 {
 	if (evt == CV_EVENT_LBUTTONDOWN) 
 	{
-		//Point*p = (Point*)ptr;
-		//p->x = x;
-		//p->y = y;
-
 		vector<Point>* ptPtr = (vector<Point>*)param;
 		ptPtr->push_back(Point(x,y) * scale_factor);
+		ROS_INFO("left click registered");
+
 
 	} else if (evt == CV_EVENT_RBUTTONDOWN)
 	{
 		goal_points.clear();
+		ROS_INFO("right click registered");
+
 	}
-	ROS_INFO("left click registered");
 }
 
 //Data Processor Class ////////////////////////////
@@ -73,14 +74,15 @@ public:
 	image_transport::ImageTransport it_nh(nh);
 	pub_viz = it_nh.advertise("/visualization",1);
 	pub_goal_out = nh.advertise<geometry_msgs::PoseArray>("/goal_pose_out",1);
+	key_cmd_pub = nh.advertise<std_msgs::Int8>("/key_cmd",1);
 
 
-	sub_rgb = it_nh.subscribe("/ground_station_rgb",1, &DataProcessor::rgbFeedCallback, this); 
-	sub_target_wp = nh.subscribe("/target_wp",2, &DataProcessor::targetwpCallback,this);
-	sub_vector_wp = nh.subscribe("/wp_pose",2, &DataProcessor::vectorwpCallback,this);
-	sub_vector_wp = nh.subscribe("/target_angle",2, &DataProcessor::targetAngleCallback,this);
-	sub_conv_fac = nh.subscribe("/conv_fac",2, &DataProcessor::convFacCallback,this);
-	sub_vehicle = nh.subscribe("/vehicle_pose",20, &DataProcessor::vehicleCallback, this);
+	sub_rgb = it_nh.subscribe("/ground_station_rgb",5, &DataProcessor::rgbFeedCallback, this); 
+	sub_target_wp = nh.subscribe("/target_wp",5, &DataProcessor::targetwpCallback,this);
+	sub_vector_wp = nh.subscribe("/wp_pose",5, &DataProcessor::vectorwpCallback,this);
+	sub_target_angle = nh.subscribe("/target_angle",5, &DataProcessor::targetAngleCallback,this);
+	sub_conv_fac = nh.subscribe("/conv_fac",5, &DataProcessor::convFacCallback,this);
+	sub_vehicle = nh.subscribe("/vehicle_pose",5, &DataProcessor::vehicleCallback, this);
     //sub_goal = nh.subscribe("/goal_pose",20, &DataProcessor::goalCallback, this);
 
 
@@ -104,16 +106,10 @@ public:
 
 	void downsampleFrame(Mat frame) {
 		scaledFrame = frame;
-		downsample_factor = 4;
-		Size size(322,241);
+		Size size(scaledFrame.cols / scale_factor , scaledFrame.rows / scale_factor); // this should be 160 x 120 
 		resize(frame,scaledFrame,size);
 
-		//get size
-		scaledFrame_height = scaledFrame.rows ;
-		scaledFrame_width =  scaledFrame.cols ; 
-
-		//ROS_INFO("downsampled occupancy grid height = %i" , scaledFrame_height);
-		//ROS_INFO("downsampled occupancy grid width = %i" , scaledFrame_width);
+		ROS_INFO("resizedFedd : %i x %i" , scaledFrame.cols, scaledFrame.rows);
 
 	}
 
@@ -139,7 +135,7 @@ public:
 
 	void vectorwpCallback (const geometry_msgs::PoseArray::ConstPtr& vector_wp_msg) 
 	{
-    	ROS_INFO("vectorwpCallback");
+    	ROS_INFO("vectorwpDownCallback");
     	vector_wp.clear();
     	int size = vector_wp_msg->poses.size();
     	for (int i=0;i<size;i++)
@@ -202,8 +198,7 @@ public:
 
 	void drawData(Mat &frame)
 	{
-		int size = vector_wp.size();
-		ROS_INFO("wp vector size = %i",size);
+
 		Scalar path_color = Scalar(0,255,0);
 		Scalar wp_color = Scalar(255,50,0);
 		Scalar goal_color = Scalar(255,0,0);
@@ -213,8 +208,9 @@ public:
 	    vehicle_heading.x = (int) round(vehicle_pose.x + LOS_RADIUS * cos(heading_angle));
 	    vehicle_heading.y = (int) round(vehicle_pose.y + LOS_RADIUS * sin(heading_angle));		    
 	    line(frame, vehicle_pose, vehicle_heading, Scalar(0, 128, 255), HEADING_LINE_THICKNESS, 8, 0);
-
-
+		
+		int size = vector_wp.size();
+		ROS_INFO("wp vector size = %i",size);
     	for (int i=0;i<size;i++)
     	{
     		circle(frame,vector_wp[i], 2, path_color,2);
@@ -277,7 +273,21 @@ public:
 		downsampleFrame(frame);
 
         imshow(windowName,scaledFrame);
-        waitKey(30);
+
+		char k = (char) cv::waitKey(30); //wait for esc key
+
+		std_msgs::Int8 key_cmd_msg;
+		//if(k == 27) break;
+		if(k== ' ')  // start tracking : case 1 and key_cmd int value 1
+		{
+			key_cmd_msg.data = 1; 
+		} 
+		else if (k==27) // reinitialize background : case 2 and key_cmd int value 2
+		{
+			key_cmd_msg.data = 2; 
+		}
+		else {key_cmd_msg.data = 0;}
+		key_cmd_pub.publish(key_cmd_msg);
 
         //publish viz
 	    img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, scaledFrame);
@@ -305,9 +315,11 @@ private:
 	image_transport::Subscriber sub_rgb;
 	image_transport::Publisher pub_viz;
 	ros::Publisher pub_goal_out;
+	ros::Publisher key_cmd_pub;
 
 	ros::Subscriber sub_target_wp;
 	ros::Subscriber sub_vector_wp;
+	ros::Subscriber sub_target_angle;
 	ros::Subscriber sub_conv_fac;
 	ros::Subscriber sub_goal;
 	ros::Subscriber sub_vehicle;
@@ -325,7 +337,6 @@ private:
 
 	double conv_fac;
 
-	int downsample_factor = 4;
 	int scaledFrame_height;
 	int scaledFrame_width;
 
