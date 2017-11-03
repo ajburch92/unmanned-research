@@ -96,6 +96,26 @@ public:
 	{
 		key_cmd = key_cmd_msg -> data;
 	    ROS_INFO("key_cmd: ( %i )",key_cmd);
+		switch (key_cmd)
+		{			
+			case 1 :
+				if (tracking_status == FALSE)
+				{
+					tracking_status = TRUE;
+				} else {tracking_status = FALSE;}
+			    	ROS_INFO ("case 1 key_cmd : tracking status toggled");
+
+			  break;
+
+			case 2 :
+
+				pMOG = new BackgroundSubtractorMOG();
+				ROS_INFO ("case 2 key_cmd : background reinitialized");
+				break;
+
+			default : 
+				break;
+		}
 	}
 
 
@@ -151,7 +171,7 @@ public:
 		resizedFeed = frame;
 		Size size(1280,960); // original resolution : 1288x964
 		resize(frame,resizedFeed,size);
-		ROS_INFO("resizedFedd : %i x %i" , resizedFeed.cols, resizedFeed.rows);
+		ROS_INFO("resizedFeed : %i x %i" , resizedFeed.cols, resizedFeed.rows);
 	}
 
 	void drawObject(vector<Object> theObjects, Mat &frame, vector< vector<Point> > contours, vector<Vec4i> hierarchy)
@@ -186,7 +206,7 @@ public:
 				drawContours(frame,contours,i,theObjects.at(i).getColor(),2,8,hierarchy);
 			} catch (Exception& e) {}
 	  		putText(frame,intToString(theObjects.at(i).getXPos(MEMORY_SIZE-1))+ " , " + intToString(theObjects.at(i).getYPos(MEMORY_SIZE-1)),cv::Point(theObjects.at(i).getXPos(MEMORY_SIZE-1),theObjects.at(i).getYPos(MEMORY_SIZE-1)+20),1,1,Scalar(0,255,0));
-	  		putText(frame,theObjects.at(i).getType() + ": " + intToString(i+1),Point(theObjects.at(i).getXPos(MEMORY_SIZE-1),theObjects.at(i).getYPos(MEMORY_SIZE-1)-20),1,2,theObjects.at(i).getColor());
+	  		putText(frame,theObjects.at(i).getType() + ": " + intToString(i+1),Point(theObjects.at(i).getXPos(MEMORY_SIZE-1),theObjects.at(i).getYPos(MEMORY_SIZE-1)-20),1,1.5,theObjects.at(i).getColor(),2);
 	    	//draw past positions if tracking
 	  		if (tracking_status == TRUE) {
 	  			for (int j = 1; j<(n-1); j++) { 
@@ -760,8 +780,10 @@ public:
 	    	cvtColor(objectFeed,objectFeed_thresh,CV_BGR2GRAY);
 			threshold(objectFeed_thresh, objectFeed_thresh, 1, 255, cv::THRESH_BINARY);
 			threshold(HSVobjects, HSVobjects, 1, 255, cv::THRESH_BINARY);
-			morphologicalOps(HSVobjects, 1, astar_size);
-	        subtract(objectFeed_thresh,HSVobjects,occupancyGrid);
+			HSVobjects_dilated = Scalar::all(0);
+			HSVobjects.copyTo(HSVobjects_dilated);
+			morphologicalOps(HSVobjects_dilated, 1, astar_size);
+	        subtract(objectFeed_thresh,HSVobjects_dilated,occupancyGrid);
 	        morphologicalOps(occupancyGrid, 3, astar_size);
 	        Mat HSVoccupancyGrid;
 	        cvtColor(occupancyGrid, HSVoccupancyGrid, CV_GRAY2BGR,3);
@@ -769,50 +791,36 @@ public:
 	        objectFeed += HSVoccupancyGrid;
 
 	      // either object detection or tracking mode
-	        switch (key_cmd)
-	        {
-		    	case 1 :
-			    	if (tracking_status == FALSE)
-			    	{
-			    		//detectObjects(BLUEthreshold,objectFeed,"goal");
-			    		//detectObjects(GREENthreshold,objectFeed,"green");
-			    		detectObjects(YELLOWthreshold,objectFeed,"vehicle");
-			    		//detectObjects(REDthreshold,objectFeed,"red");
-			    		putText(birdseyeFeed,"DETECTING OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
-
-			            // Set each element in history to 0
-			            for (int i = 0; i < VEHICLE_POSE_HISTORY_SIZE; i++) {
-			                vehicle_pose_history[i] = Point(0, 0);
-						}
-
-			    	} 
-					else // tracking mode turned on
-					{
-						// update pointer
-						update_pose_history();
-
-						detectObjects(occupancyGrid,objectFeed, " ");
-
-						//trackObjects(BLUEthreshold,objectFeed,objects_blue,"goal");
-						//trackObjects(GREENthreshold,objectFeed,objects_green,"green");
-						trackObjects(YELLOWthreshold,objectFeed,objects_yellow,"vehicle");
-						//trackObjects(REDthreshold,objectFeed,objects_red,"red");
-						putText(birdseyeFeed,"TRACKING OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
 
 
-					}
- 			    	ROS_INFO ("case 1 key_cmd");
+			if (tracking_status == FALSE)
+			{
+				//detectObjects(BLUEthreshold,objectFeed,"goal");
+				//detectObjects(GREENthreshold,objectFeed,"green");
+				detectObjects(YELLOWthreshold,objectFeed,"vehicle");
+				//detectObjects(REDthreshold,objectFeed,"red");
+				putText(objectFeed,"DISARMED : DETECTING VEHICLE",Point(0,50),1,2,Scalar(0,0,255),2); 
 
-			      break;
+				// Set each element in history to 0
+				for (int i = 0; i < VEHICLE_POSE_HISTORY_SIZE; i++) {
+					vehicle_pose_history[i] = Point(0, 0);
+				}
 
-			    case 2 :
+			} 
+			else // tracking mode turned on
+			{
+				// update pointer
+				update_pose_history();
 
-			    	pMOG = new BackgroundSubtractorMOG();
-			    	ROS_INFO ("case 2 key_cmd");
-			    	break;
-			    
-			    default : 
-			    	break;
+				detectObjects(occupancyGrid,objectFeed, " ");
+
+				//trackObjects(BLUEthreshold,objectFeed,objects_blue,"goal");
+				//trackObjects(GREENthreshold,objectFeed,objects_green,"green");
+				trackObjects(YELLOWthreshold,objectFeed,objects_yellow,"vehicle");
+				//trackObjects(REDthreshold,objectFeed,objects_red,"red");
+				putText(objectFeed,"ARMED : TRACKING VEHICLE",Point(0,50),1,1.5,Scalar(0,0,255),2); 
+
+
 			}
 	      // downsample objectFeed to get occupancy grid
 		  downsampleGrid(occupancyGrid);
@@ -870,6 +878,7 @@ private:
 	Mat birdseyeFeed;
 	Mat HSV;
 	Mat HSVobjects;
+	Mat HSVobjects_dilated;
 	Mat BLUEthreshold;
 	Mat GREENthreshold;
 	Mat YELLOWthreshold;
@@ -1030,9 +1039,9 @@ private:
 
 	// vehicle location history
 	Point * vehicle_pose_history = new Point[VEHICLE_POSE_HISTORY_SIZE];
-	
 	int vehicle_pose_history_pointer;
 
+	// vizualization waitkey cmds
 	int key_cmd = 0;
 
 };

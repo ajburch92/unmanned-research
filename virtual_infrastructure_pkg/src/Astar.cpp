@@ -48,7 +48,7 @@ static int dy[dir]={0, 1, 1, 1, 0, -1, -1, -1};
 const string astarwindowName = "Astar planner";
 image_transport::Publisher path_pub;
 ros::Publisher wp_pub;
-
+Point vehicle_pose;
 
 // start and finish locations
 int xA = 0;
@@ -251,11 +251,11 @@ void upsampleGrid () {
 void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
 {
 	double xtemp, ytemp;
-    xtemp = vehicle_pose_msg->x;
-    ytemp = vehicle_pose_msg ->y;
+    vehicle_pose.x = vehicle_pose_msg->x;
+    vehicle_pose.y = vehicle_pose_msg ->y;
     //translate to downsampled coordinates
-    xtemp = xtemp / scale_factor;
-    ytemp = ytemp / scale_factor;
+    xtemp = vehicle_pose.x / scale_factor;
+    ytemp = vehicle_pose.y / scale_factor;
     xA  = (int)xtemp;
     yA = (int)ytemp;
 
@@ -285,23 +285,27 @@ void goal_outCallback (const geometry_msgs::PoseArray::ConstPtr& goal_out_pose_m
 
     while ((euclidean_d <= LOS_RADIUS) && (i<(sz-1)))
     {
-      euclidean_d = sqrt(((((xA*scale_factor)-goal_out_pose_msg->poses[i].position.x)*((xA*scale_factor)-goal_out_pose_msg->poses[i].position.x)) + (((yA*scale_factor)-goal_out_pose_msg->poses[i].position.y)*((yA*scale_factor)-goal_out_pose_msg->poses[i].position.y))));
-      i++;
+      euclidean_d = sqrt(((((vehicle_pose.x)-goal_out_pose_msg->poses[i].position.x)*((vehicle_pose.x)-goal_out_pose_msg->poses[i].position.x)) + (((vehicle_pose.y)-goal_out_pose_msg->poses[i].position.y)*((vehicle_pose.x)-goal_out_pose_msg->poses[i].position.y))));
+      if (euclidean_d < LOS_RADIUS)
+      {
+        i++;
+      }
     }
-    // keep at ZERO till debugged
-    xtemp = goal_out_pose_msg->poses[0].position.x / scale_factor;
-    ytemp = goal_out_pose_msg->poses[0].position.y / scale_factor;
+
+    xtemp = goal_out_pose_msg->poses[i].position.x / scale_factor;
+    ytemp = goal_out_pose_msg->poses[i].position.y / scale_factor;
     xB  = (int)xtemp;
     yB = (int)ytemp;
 
     ROS_INFO("goal_outCallback (xB, yB): ( %i , %i ),  subgoal_distance: %f",xB,yB,euclidean_d);
 
-    // subgoal decision
-    // if none, wait
-    // if goal exists, and tracking, go to first waypoint
-    // when close, go to next
-    // if no next, stop
-    // if none, stop
+/*	if (sz > 1 && (i<=(sz-2)))
+	{
+		xtemp = goal_out_pose_msg->poses[i+1].position.x / scale_factor;
+    	ytemp = goal_out_pose_msg->poses[i+1].position.y / scale_factor;
+    	xB  = (int);
+    	yB = (int)ytemp;
+	}*/
 
 }
 

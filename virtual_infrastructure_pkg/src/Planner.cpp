@@ -90,7 +90,6 @@ void update_target_angle()
         p_i[1] = y_vehicle;
         pi_bool =1;
         ROS_INFO("p_i = %f,%f",p_i[0],p_i[1]);
-
     }
     // init
     p_e[0] = x_vehicle;
@@ -171,7 +170,10 @@ void waypointCallback (const geometry_msgs::PoseArray::ConstPtr& waypoint_pose_m
     while ((euclidean_d <= LOS_RADIUS) && (i<(sz-1)))
     {
       euclidean_d = sqrt(((x_vehicle-waypoint_pose_msg->poses[i].position.x)*(x_vehicle-waypoint_pose_msg->poses[i].position.x)) + ((y_vehicle-waypoint_pose_msg->poses[i].position.y)*(y_vehicle-waypoint_pose_msg->poses[i].position.y)));
-      i++;
+      if (euclidean_d < LOS_RADIUS)
+      {
+        i++;
+      }
       //ROS_INFO("waypoint( %f , %f ), waypointDistance: %f",waypoint_pose_msg->poses[i].position.x,waypoint_pose_msg->poses[i].position.y,euclidean_d);
       //vector_wp[i] = Point(waypoint_pose_msg->poses[i].position.x, waypoint_pose_msg->poses[i].position.y);
     }
