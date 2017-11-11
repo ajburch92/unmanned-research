@@ -48,14 +48,16 @@ static int dy[dir]={0, 1, 1, 1, 0, -1, -1, -1};
 const string astarwindowName = "Astar planner";
 image_transport::Publisher path_pub;
 ros::Publisher wp_pub;
+
 Point vehicle_pose;
 
 // start and finish locations
 int xA = 0;
 int yA = 0;
-int xB = 2;
-int yB = 2;
+int xB = 110 / scale_factor;
+int yB = 0;
 
+int subgoal = 0;
 
 Mat gridDown(n,m,CV_8UC1,Scalar(0));
 Mat pathDown(n,m,CV_8UC1,Scalar(0));
@@ -280,32 +282,36 @@ void goal_outCallback (const geometry_msgs::PoseArray::ConstPtr& goal_out_pose_m
 {
     double xtemp, ytemp;
     int sz = goal_out_pose_msg->poses.size();
-    int i = 0;
     double euclidean_d=0;
 
-    while ((euclidean_d <= LOS_RADIUS) && (i<(sz-1)))
+/*    if ( goal_out_pose_msg->poses[0].position.x == 0 && goal_out_pose_msg->poses[0].position.x == 0 ) //no subgoals or cleared subgoals ; reset subgoal indice
     {
-      euclidean_d = sqrt(((((vehicle_pose.x)-goal_out_pose_msg->poses[i].position.x)*((vehicle_pose.x)-goal_out_pose_msg->poses[i].position.x)) + (((vehicle_pose.y)-goal_out_pose_msg->poses[i].position.y)*((vehicle_pose.x)-goal_out_pose_msg->poses[i].position.y))));
-      if (euclidean_d < LOS_RADIUS)
+    	subgoal = 0;
+    } */
+
+    while (1)
+    {
+      euclidean_d = sqrt(((((vehicle_pose.x)-goal_out_pose_msg->poses[subgoal].position.x)*((vehicle_pose.x)-goal_out_pose_msg->poses[subgoal].position.x)) + (((vehicle_pose.y)-goal_out_pose_msg->poses[subgoal].position.y)*((vehicle_pose.y)-goal_out_pose_msg->poses[subgoal].position.y))));
+      if (euclidean_d > LOS_RADIUS) // continue to waypoint
       {
-        i++;
+	    break;
+      } else { //distance < los radius : either go to next waypoint or stop at last waypoint
+      	if (subgoal==(sz-1)) // last waypoint, stop
+      	{
+      		break;
+      	} else { // subgoal, go to next waypoint
+      		subgoal++;
+      	}
       }
     }
+	xtemp = goal_out_pose_msg->poses[subgoal].position.x / scale_factor;
+	ytemp = goal_out_pose_msg->poses[subgoal].position.y / scale_factor;
+	xB  = (int)xtemp;
+	yB = (int)ytemp;
 
-    xtemp = goal_out_pose_msg->poses[i].position.x / scale_factor;
-    ytemp = goal_out_pose_msg->poses[i].position.y / scale_factor;
-    xB  = (int)xtemp;
-    yB = (int)ytemp;
+    ROS_INFO("goal_outCallback (xB, yB): ( %i , %i ),  subgoal_distance: %f i = %i",xB,yB,euclidean_d,subgoal);
 
-    ROS_INFO("goal_outCallback (xB, yB): ( %i , %i ),  subgoal_distance: %f",xB,yB,euclidean_d);
 
-/*	if (sz > 1 && (i<=(sz-2)))
-	{
-		xtemp = goal_out_pose_msg->poses[i+1].position.x / scale_factor;
-    	ytemp = goal_out_pose_msg->poses[i+1].position.y / scale_factor;
-    	xB  = (int);
-    	yB = (int)ytemp;
-	}*/
 
 }
 
@@ -466,6 +472,9 @@ int main(int argc, char **argv)
     {
         for(int x=0;x<n;x++) grid[x][y]=0;
     }
+
+	vehicle_pose.x = 0;
+	vehicle_pose.y = 0;
 
     // init ROS node
     ros::init(argc, argv, "astar_planner");

@@ -29,14 +29,14 @@
 #include <iostream>
 #include <vector>
 #include <deque>
-#include <math.h>edd
+#include <math.h>
 #include <stdio.h>
 //object class
 #include "Object.h"
 //msg file headers
 #define LOS_RADIUS 100 //currently in pixels
 #define HEADING_LINE_THICKNESS 2
-#define VEHICLE_POSE_HISTORY_SIZE 20
+#define VEHICLE_POSE_HISTORY_SIZE 150
 
 using namespace std;
 using namespace cv;
@@ -58,6 +58,7 @@ public:
 	occupancyGrid_pub = it_rgb.advertise("/occupancyGrid" , 1);
 	rgb_vehicle_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("vehicle_pose",2);
 	rgb_goal_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("goal_pose",2);
+	rgb_arm_bool_pub = nh_rgb.advertise<std_msgs::Float64>("arm_bool",2);
 	key_cmd_sub = nh_rgb.subscribe("/key_cmd" , 2 , &RGBImageProcessor::keyCallback, this);
 /*	sub_target_wp = nh_rgb.subscribe("/target_wp",2, &RGBImageProcessor::targetwpCallback,this);
 	sub_vector_wp = nh_rgb.subscribe("/wp_pose",2, &RGBImageProcessor::vectorwpCallback,this);
@@ -152,10 +153,17 @@ public:
 	    ROS_INFO("width_factor = %f" , width_factor); 
 	}
 
+	void downsampleFrameOut(Mat frame) {
+		frameoutDown = frame;
+		scale_factor = 8; // this may not work for all resolutions. this value needs to match the value in astar. retrive from param launch file.
+		Size size(resizedFeed.cols / scale_factor , resizedFeed.rows / scale_factor); // this should be 160x120 
+		resize(frame,frameoutDown,size);
+	}
+
 	void downsampleGrid(Mat grid) {
 		gridDown = grid;
 		scale_factor = 8; // this may not work for all resolutions. this value needs to match the value in astar. retrive from param launch file.
-		Size size(resizedFeed.cols / scale_factor , resizedFeed.rows / scale_factor); // this should be 160 x 120 
+		Size size(resizedFeed.cols / scale_factor , resizedFeed.rows / scale_factor); // this should be 160x120 
 		resize(grid,gridDown,size);
 		//pyrDown( grid, gridDown, Size( grid.cols/scale_factor, grid.rows/scale_factor ) );
 
@@ -255,7 +263,7 @@ public:
 	    line(img, p, q, colour, 2, CV_AA);
 	}
 
-	double pcaOrientation(const vector<Point> &pts, Mat &objectFeed)
+	void pcaOrientation(const vector<Point> &pts, Mat &objectFeed)
 	{
 		//Construct a buffer used by the pca analysis
 	    int sz = static_cast<int> (pts.size());
@@ -283,8 +291,8 @@ public:
 	    Point p2 = cntr - 0.02 * Point(static_cast<int> (eigen_vecs[1].x * eigen_val[1]), static_cast<int> (eigen_vecs[1].y * eigen_val[1]));
 	    drawAxis(objectFeed, cntr, p1, Scalar(0, 255, 0), 1);
 	    drawAxis(objectFeed, cntr, p2, Scalar(255, 255, 0), 5);
-	    double angle = atan2(eigen_vecs[0].y, eigen_vecs[0].x); // orientation in radians
-		return angle;
+	    vehicle_orientation_angle = atan2(eigen_vecs[0].y, eigen_vecs[0].x); // orientation in radians
+
 	}
 
 	void update_pose_history(){
@@ -295,12 +303,11 @@ public:
         vehicle_pose_history_pointer = (vehicle_pose_history_pointer + 1) % VEHICLE_POSE_HISTORY_SIZE;
 	}
 
-	double polyOrientation(Mat &objectFeed){
-
-		double angle=0;
+	void polyOrientation(Mat &objectFeed)
+	{
     
-	    // Initialize curve
-	    vector<Point> pose_poly;
+	    // clear vector
+		pose_poly.clear();
 	    
 	    // Sort vehicle location history chronologically
 	    Point * vehicle_pose_history_sorted = new Point[VEHICLE_POSE_HISTORY_SIZE];
@@ -340,9 +347,8 @@ public:
 	    //line(objectFeed, vehicle_pose, heading_point_polynomial_approximation, Scalar(0, 128, 255), HEADING_LINE_THICKNESS, 8, 0);
 	    
 	    // Use curve polynomial tangent angle
-	    angle = vehicle_angle_polynomial_approximation;
+	    vehicle_orientation_angle = vehicle_angle_polynomial_approximation;
 
-	    return angle;
 	} 
 
 	void morphologicalOps (Mat &thresh, int erodeS, int dilateS) 
@@ -513,10 +519,13 @@ public:
 		 	  		//x_obj = (int)(x_obj + xdot_obj * FPS);
 		 	  		//y_obj = (int)(y_obj + ydot_obj * FPS);
 	               	
-	               	objects.at(i).setXPos(x_obj);
-			  		objects.at(i).setYPos(y_obj);
+
 	             	//objects.push_back(object_temp); // only track desired number of objects for right now, match to nearest object, ignore rest.
-	          	
+/*	          		x_obj = (int)pose_poly[VEHICLE_POSE_HISTORY_SIZE-1].x;
+			  		y_obj = (int)pose_poly[VEHICLE_POSE_HISTORY_SIZE-1].y;
+*/
+			  		objects.at(i).setXPos(x_obj);
+			  		objects.at(i).setYPos(y_obj);
 	          	}
 
 
@@ -542,6 +551,11 @@ public:
 		 	  //x_obj = (int)((float)x_obj + xdot_obj * (float)FPS);
 		 	  //y_obj = (int)((float)y_obj + ydot_obj * (float)FPS);
 
+
+/*
+			  x_obj = (int)pose_poly[VEHICLE_POSE_HISTORY_SIZE-1].x;
+			  y_obj = (int)pose_poly[VEHICLE_POSE_HISTORY_SIZE-1].y;
+*/
 			  objects.at(j).setXPos(x_obj);
 			  objects.at(j).setYPos(y_obj);
 			}	  	  
@@ -572,8 +586,9 @@ public:
 			vehicle_pose_msg.x = x;
 			vehicle_pose_msg.y = y;
 			
-			//vehicle_pose_msg.theta = pcaOrientation(contours[max_contour_index],frame);
-			vehicle_pose_msg.theta = polyOrientation(frame);
+			//pcaOrientation(contours[max_contour_index],frame);
+			polyOrientation(frame);
+			vehicle_pose_msg.theta = vehicle_orientation_angle;
 			//convert to radians
 			
 			vehicle_pose_msg.theta = vehicle_pose_msg.theta*CV_PI/180;
@@ -726,15 +741,31 @@ public:
 
 			}
 
-/*	    	circle(resizedFeed , imgPts[0], 9, Scalar(255,0,0),3);
-	    	circle(resizedFeed , imgPts[1], 9, Scalar(0,255,0),3);
-	    	circle(resizedFeed , imgPts[2], 9, Scalar(0,0,255),3);
-	    	circle(resizedFeed , imgPts[3], 9, Scalar(0,255,255),3);*/
-
-	    	circle(birdseyeFeed, imgPts[0], 9, Scalar(255,0,0),3);
+/*	    	circle(birdseyeFeed, imgPts[0], 9, Scalar(255,0,0),3);
 	    	circle(birdseyeFeed, imgPts[1], 9, Scalar(0,255,0),3);
 	    	circle(birdseyeFeed, imgPts[2], 9, Scalar(0,0,255),3);
 	    	circle(birdseyeFeed, imgPts[3], 9, Scalar(0,255,255),3);
+*/
+
+
+/*	      //adjust image and dim birdseye
+	      alpha = 1.2; // 1-3
+	      beta = 20; // 0-100
+		  birdseyeFeed_adjusted = Mat::zeros(birdseyeFeed.size(), birdseyeFeed.type());
+
+	      for (int y=0; y< birdseyeFeed.rows; y++) 
+	      {
+	      	  for (int x=0; x<birdseyeFeed.cols; x++)
+	      	  {
+	      		  for (int c = 0; c < 3 ; c++)
+	      		  {
+	      			  birdseyeFeed.at<Vec3b>(y,x)[c] = saturate_cast<uchar>(alpha*(birdseyeFeed.at<Vec3b>(y,x)[c]) - beta); // dim bg image
+
+	      			  birdseyeFeed_adjusted.at<Vec3b>(y,x)[c] = saturate_cast<uchar>(alpha*(birdseyeFeed.at<Vec3b>(y,x)[c]) - 60); // dim bg image
+
+	      		  }
+	      	  }
+	      }*/
 
 	      // Background subtraction
 	    	pMOG->operator()(birdseyeFeed,fgMaskMOG);
@@ -806,6 +837,8 @@ public:
 					vehicle_pose_history[i] = Point(0, 0);
 				}
 
+				arm_bool = 0;
+
 			} 
 			else // tracking mode turned on
 			{
@@ -820,6 +853,7 @@ public:
 				//trackObjects(REDthreshold,objectFeed,objects_red,"red");
 				putText(objectFeed,"ARMED : TRACKING VEHICLE",Point(0,50),1,1.5,Scalar(0,0,255),2); 
 
+				arm_bool = 1;
 
 			}
 	      // downsample objectFeed to get occupancy grid
@@ -827,28 +861,39 @@ public:
 
 	      // Create processing palate
 	      //putText(dialog_box, "text test", Point(0,50),1,2,Scalar(255),2);
-/*	      imshow(trackbar_window_name,dialog_box); 
+	      //imshow(trackbar_window_name,dialog_box); 
 
-	      createTrackbar( "Min Threshold:", trackbar_window_name, &lowThreshold, max_lowThreshold);
+/*	      createTrackbar( "Min Threshold:", trackbar_window_name, &lowThreshold, max_lowThreshold);
 	      createTrackbar( "Erode Size:", trackbar_window_name, &erodeSize, max_erode+1);
 	      createTrackbar( "Dilate Size:", trackbar_window_name, &dilateSize, max_dilate+1);
 	      //createTrackbar( "Blur Size:", trackbar_window_name, &blurSize, max_blur+2);
 	      createTrackbar( "Blur Sigma Size:", trackbar_window_name, &sigmaSize, max_sigma+1);
 	      createTrackbar( "Distortion Angle", trackbar_window_name, &distortionAngle, max_distortion+1);
 	      createTrackbar( "Birds Eye Height", trackbar_window_name, &birdseyeHeight, max_birdseye+1);
-*/
+
+	      createTrackbar( "contrast", trackbar_window_name, &alpha, max_alpha+1);
+	      createTrackbar( "brightness", trackbar_window_name, &beta, max_beta+1);*/
 	      // drawCheckerboardCorners
 	      //drawChessboardCorners(birdseyeFeed, patternsize, Mat(corners), patternfound);      
 
+	      // add dimmed birdseyeFeed_adjusted to objectFeed display.
+	      //objectFeed += birdseyeFeed_adjusted;
+	      objectFeed += birdseyeFeed;
+	      downsampleFrameOut(objectFeed);
 	      // Show processed image
 	      //imshow(windowName2, HSVthreshold);
           //imshow(windowName3,objectFeed);
-	      //imshow(windowName,objectFeed_thresh);
+	      //imshow(windowName1,objectFeed_thresh);
 	      //imshow(windowName4,birdseyeFeed);
 	      //imshow(windowName5,occupancyGrid);
 	      //imshow(windowName6,fgMaskMOG);
+	      //imshow(windowName6,birdseyeFeed);
+	      //imshow(windowName1,objectFeed);
+		  //cv::waitKey(30); //wait for esc key
 
-
+			std_msgs::Float64 arm_bool_msg;
+			arm_bool_msg.data = arm_bool;
+			rgb_arm_bool_pub.publish(arm_bool_msg);
 
 	      // Output modified video stream
 	      img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, objectFeed);
@@ -889,7 +934,9 @@ private:
 	Mat dilateElement;
 		//Mat occupancyGrid;
 	Mat birdgrayFeed;
+	Mat birdseyeFeed_adjusted;
 	Mat gridDown;
+	Mat frameoutDown;
 	//Mat occupancyGrid;
 	//background subtraction global variables.
 	Mat frame;
@@ -910,7 +957,7 @@ private:
 	const int MIN_OBJECT_AREA = 10*10;
 
 	//names of feed windows
-	const string windowName = "Raw Feed";
+	const string windowName1 = "Raw Feed";
 	const string windowName2 = "HSVobjects";
 	const string windowName3 = "Output Feed";
 	const string windowName4 = "Undistorted Feed";
@@ -928,6 +975,11 @@ private:
 	int const max_lowThreshold = 255;
 	int const max_dilate = 100;
 	int const max_erode = 100;
+	int const max_beta = 100;
+	int const max_alpha = 3.0;
+	int alpha = 1;
+	int beta = 0;
+
 	int ratio = 3;
 	int kernel_size = 3;
 
@@ -970,7 +1022,7 @@ private:
 	//Distortion parameters
 	int distortionAngle = 0;
 	int const max_distortion = 180;
-	int birdseyeHeight = 28;
+	int birdseyeHeight = 23;
 	int const max_birdseye = 100;
 
 	//checkerboard ... or chess, board parameters
@@ -1005,6 +1057,7 @@ private:
 	ros::Publisher rgb_vehicle_pub;
 	ros::Publisher rgb_goal_pub;
 	ros::Publisher conv_fac_pub;
+	ros::Publisher rgb_arm_bool_pub;
 
 	Mat background;
 	image_transport::Subscriber rgb_sub_;
@@ -1044,6 +1097,10 @@ private:
 	// vizualization waitkey cmds
 	int key_cmd = 0;
 
+	double vehicle_orientation_angle=0;
+	vector<Point> pose_poly;
+
+	int arm_bool = 0;
 };
 
 

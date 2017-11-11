@@ -1,6 +1,8 @@
 #include <ros/ros.h>
 #include "nav_msgs/Odometry.h"
 #include <std_msgs/Float64.h>
+#include <std_msgs/Int8.h>
+
 //#include "vehicle_pose.h"
 //#include "wp_pose.h"
 #include <geometry_msgs/Pose2D.h>
@@ -31,6 +33,7 @@ ros::Publisher target_wp_pub;
 ros::Subscriber sub_vehicle;
 ros::Subscriber sub_wp;
 ros::Subscriber sub_conv_fac;
+ros::Subscriber sub_arm_bool;
 
 double radius;
 vector <double> p_i;
@@ -61,25 +64,39 @@ vector<Point> vector_wp;
 
 double conv_fac;
 
+int arm_bool;
+
 
 void update_target_speed()
 {
-    distance_to_target = sqrt(pow(x_vehicle - x_wp, 2) + pow(y_vehicle - y_wp, 2));
-    std_msgs::Float64 target_speed_msg;
-    
-    if (distance_to_target < 100) { // meter?? NEED TO CONVERT FROM PIXELS TO METERS
-        target_speed = 0.8*target_speed*(1 - (1/distance_to_target));
-    } else if (distance_to_target < 40) {
-        target_speed = 0;
+ if (arm_bool > 0) 
+ {
+
+      distance_to_target = sqrt(pow(x_vehicle - x_wp, 2) + pow(y_vehicle - y_wp, 2));
+      std_msgs::Float64 target_speed_msg;
+      
+      if (distance_to_target < 100) { // meter?? NEED TO CONVERT FROM PIXELS TO METERS
+          target_speed = 0.8*target_speed*(1 - (1/distance_to_target));
+      } else if (distance_to_target < 40) {
+          target_speed = 0;
+      } else {
+        target_speed = 50.0*conv_fac; // pixels to meter/second    
+      }
+
+      ROS_INFO("distance_to_target: %f , target_speed: %f",  distance_to_target, target_speed);
+
+      target_speed_msg.data = target_speed;
+      target_speed_pub.publish(target_speed_msg);
+
     } else {
-      target_speed = 50.0*conv_fac; // pixels to meter/second    
+
+      std_msgs::Float64 target_speed_msg;
+      target_speed = 0.0;
+      target_speed_msg.data = target_speed;
+      ROS_INFO("target_speed: %f", target_speed_msg.data);
+      target_speed_pub.publish(target_speed_msg);
+
     }
-
-    ROS_INFO("distance_to_target: %f , target_speed: %f",  distance_to_target, target_speed);
-
-    target_speed_msg.data = target_speed;
-    //ROS_INFO("target_speed: %f", target_speed_msg.data);
-    target_speed_pub.publish(target_speed_msg);
 }
 
 void update_target_angle()
@@ -139,6 +156,15 @@ void update_target_angle()
 
 }
 
+void armCallback (const std_msgs::Float64::ConstPtr& arm_bool_msg) 
+{
+    arm_bool = arm_bool_msg -> data;
+    ROS_INFO("arm_bool = %i" , arm_bool);
+
+    update_target_speed();
+
+}
+
 void convFacCallback (const std_msgs::Float64::ConstPtr& conv_fac_msg) 
 {
     conv_fac = conv_fac_msg -> data;
@@ -149,12 +175,13 @@ void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg)
 {
     x_vehicle  = vehicle_pose_msg->x;
     y_vehicle = vehicle_pose_msg->y;
+    p_i[0] = x_vehicle;
+    p_i[1] = y_vehicle;
     ROS_INFO("vehicleCallback: ( %f , %f )",x_vehicle,y_vehicle);
     int i = 0;
     double euclidean_d=0;
     int sz = vector_wp.size();
 
-    update_target_speed();
     update_target_angle();
 
 }
@@ -170,13 +197,22 @@ void waypointCallback (const geometry_msgs::PoseArray::ConstPtr& waypoint_pose_m
     while ((euclidean_d <= LOS_RADIUS) && (i<(sz-1)))
     {
       euclidean_d = sqrt(((x_vehicle-waypoint_pose_msg->poses[i].position.x)*(x_vehicle-waypoint_pose_msg->poses[i].position.x)) + ((y_vehicle-waypoint_pose_msg->poses[i].position.y)*(y_vehicle-waypoint_pose_msg->poses[i].position.y)));
-      if (euclidean_d < LOS_RADIUS)
+      if (euclidean_d > LOS_RADIUS)
       {
-        i++;
+        break; // waypoint found
+      } else // distance < los radius
+      {
+        if (i==(sz-1)) // last waypoint, stop
+        {
+          break;
+        } else { // more points, go to next waypoint
+          i++;
+        }
       }
+    }
+
       //ROS_INFO("waypoint( %f , %f ), waypointDistance: %f",waypoint_pose_msg->poses[i].position.x,waypoint_pose_msg->poses[i].position.y,euclidean_d);
       //vector_wp[i] = Point(waypoint_pose_msg->poses[i].position.x, waypoint_pose_msg->poses[i].position.y);
-    }
 
     x_wp  = waypoint_pose_msg->poses[i].position.x;
     y_wp = waypoint_pose_msg->poses[i].position.y;
@@ -197,6 +233,7 @@ void waypointCallback (const geometry_msgs::PoseArray::ConstPtr& waypoint_pose_m
 
 int main(int argc, char **argv)
 {
+  arm_bool = 0;
   conv_fac = 1.0;
   target_speed = 0.1;
   pi_bool = 0;  
@@ -221,6 +258,7 @@ int main(int argc, char **argv)
   sub_vehicle = n.subscribe("/vehicle_pose",20, &vehicleCallback);
   sub_wp = n.subscribe("/wp_pose",20, &waypointCallback);
   sub_conv_fac = n.subscribe("/conv_fac",20, &convFacCallback);
+  sub_arm_bool = n.subscribe("/arm_bool",20, &armCallback);
 
   target_angle_pub = n.advertise<std_msgs::Float64>("/target_angle",2);
   target_speed_pub = n.advertise<std_msgs::Float64>("/target_speed",2);
