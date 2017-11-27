@@ -32,5 +32,6 @@ alias cv='cd ~/catkin_ws/src/unmanned-research/virtual_infrastructure_pkg'
 
 sh /home/user/startup_script.sh
 
-# rc car control pkg
+
+
 
