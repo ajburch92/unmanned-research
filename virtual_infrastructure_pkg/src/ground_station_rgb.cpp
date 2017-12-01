@@ -1058,7 +1058,7 @@ private:
 	//Distortion parameters
 	int distortionAngle = 0;
 	int const max_distortion = 180;
-	int birdseyeHeight = 23;
+	int birdseyeHeight = 21;
 	int const max_birdseye = 100;
 
 	//checkerboard ... or chess, board parameters

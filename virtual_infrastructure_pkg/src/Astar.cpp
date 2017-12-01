@@ -298,7 +298,8 @@ void goal_outCallback (const geometry_msgs::PoseArray::ConstPtr& goal_out_pose_m
       } else { //distance < los radius : either go to next waypoint or stop at last waypoint
       	if (subgoal==(sz-1)) // last waypoint, stop
       	{
-      		break;
+      		subgoal = 0;
+      		//break;
       	} else { // subgoal, go to next waypoint
       		subgoal++;
       	}
