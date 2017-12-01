@@ -79,6 +79,12 @@ public:
 	    vehicle_pose_history[i] = Point(0, 0);
 	}
 
+	Mat cam_intrinsic_mat = (Mat_<double>(3,3) << 
+		1257.9354531133 , 0.0 , 711.8948570519622,
+		0.0, 1258.482033400394, 459.2775748027645,
+		0.0, 0.0, 1.0);
+	Mat cam_dist_vec = (Mat_<double>(1,5) <<
+		-0.09831822598667773, 0.1015705125684106, -0.002485105904864273, 0.01055372647729187, 0.0);
 
 	}
 
@@ -242,7 +248,7 @@ public:
 
 	}
 
-	void drawAxis(Mat& img, Point p, Point q, Scalar colour, const float scale = 2) 
+	void drawAxis(Mat& img, Point p, Point q, Scalar colour, const float scale = 80) 
 	{
 	    double angle;
 	    double hypotenuse;
@@ -291,7 +297,7 @@ public:
 	    Point p2 = cntr - 0.02 * Point(static_cast<int> (eigen_vecs[1].x * eigen_val[1]), static_cast<int> (eigen_vecs[1].y * eigen_val[1]));
 	    drawAxis(objectFeed, cntr, p1, Scalar(0, 255, 0), 1);
 	    drawAxis(objectFeed, cntr, p2, Scalar(255, 255, 0), 5);
-	    vehicle_orientation_angle = atan2(eigen_vecs[0].y, eigen_vecs[0].x); // orientation in radians
+	    pca_vehicle_orientation_angle = atan2(eigen_vecs[0].y, eigen_vecs[0].x); // orientation in radians
 
 	}
 
@@ -303,7 +309,19 @@ public:
         vehicle_pose_history_pointer = (vehicle_pose_history_pointer + 1) % VEHICLE_POSE_HISTORY_SIZE;
 	}
 
-	void polyOrientation(Mat &objectFeed)
+	void headingFilter() {
+		double angle_diff = pca_vehicle_orientation_angle - poly_vehicle_orientation_angle;
+		//vehicle_orientation_angle = 1.0*pca_vehicle_orientation_angle + 0.0*poly_vehicle_orientation_angle;
+		double angle_change = vehicle_orientation_angle - prev_vehicle_orientation_angle;
+		if (angle_change > 1.5 && abs(vehicle_orientation_angle-0.016)<0.015) 
+		{
+			vehicle_orientation_angle = prev_vehicle_orientation_angle;
+			ROS_INFO("prev angle selected");
+		} else {vehicle_orientation_angle = poly_vehicle_orientation_angle;}
+		ROS_INFO("headingFilter: angle diff = %f, angle_change = %f, vehicle_orientation_angle = %f",angle_diff, angle_change,vehicle_orientation_angle);
+	}
+
+	double polyOrientation(Mat &objectFeed)
 	{
     
 	    // clear vector
@@ -321,7 +339,7 @@ public:
 	    }
 	    
 	    // Approximate location history with a polynomial curve
-	    approxPolyDP(input_points, pose_poly, 4, false);
+	    approxPolyDP(input_points, pose_poly, 3, false);
 
 	    // Draw polynomial curve
 	    for (int i = 0; i < pose_poly.size() - 1; i++) {
@@ -347,7 +365,18 @@ public:
 	    //line(objectFeed, vehicle_pose, heading_point_polynomial_approximation, Scalar(0, 128, 255), HEADING_LINE_THICKNESS, 8, 0);
 	    
 	    // Use curve polynomial tangent angle
-	    vehicle_orientation_angle = vehicle_angle_polynomial_approximation;
+	    poly_vehicle_orientation_angle = vehicle_angle_polynomial_approximation;
+
+	    // look at recent distance travel
+	    double recent_dist_travel=0 ;
+
+	    for (int i = 0; i < 3; i++) {
+	    	recent_dist_travel = recent_dist_travel + (sqrt(((input_points[i+1].x - input_points[i].x)*(input_points[i+1].x - input_points[i].x)) 
+	    		+ ((input_points[i+1].y - input_points[i].y)*(input_points[i+1].y - input_points[i].y))));
+	    }
+		ROS_INFO("recent_dist_travel = %f",recent_dist_travel);
+
+	    return recent_dist_travel;
 
 	} 
 
@@ -586,9 +615,15 @@ public:
 			vehicle_pose_msg.x = x;
 			vehicle_pose_msg.y = y;
 			
-			//pcaOrientation(contours[max_contour_index],frame);
-			polyOrientation(frame);
+			double recent_dist_travel = polyOrientation(frame);
+			if (recent_dist_travel < 10) 
+			{
+				pcaOrientation(contours[max_contour_index],frame);
+				headingFilter();
+			} else { vehicle_orientation_angle = poly_vehicle_orientation_angle;}
+	
 			vehicle_pose_msg.theta = vehicle_orientation_angle;
+			prev_vehicle_orientation_angle = vehicle_orientation_angle;
 			//convert to radians
 			
 			vehicle_pose_msg.theta = vehicle_pose_msg.theta*CV_PI/180;
@@ -941,6 +976,7 @@ private:
 	//background subtraction global variables.
 	Mat frame;
 	Mat fgMaskMOG;
+
 	Ptr<BackgroundSubtractor> pMOG;
 	int history=1;
 	float varThreshold = 16;
@@ -1098,9 +1134,14 @@ private:
 	int key_cmd = 0;
 
 	double vehicle_orientation_angle=0;
+	double pca_vehicle_orientation_angle = 0;
+	double poly_vehicle_orientation_angle = 0;
+	double prev_vehicle_orientation_angle = 0;
 	vector<Point> pose_poly;
 
 	int arm_bool = 0;
+
+
 };
 
 

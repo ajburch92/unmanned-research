@@ -204,6 +204,7 @@ void waypointCallback (const geometry_msgs::PoseArray::ConstPtr& waypoint_pose_m
       {
         if (i==(sz-1)) // last waypoint, stop
         {
+          i=0 // trying out continuous mode
           break;
         } else { // more points, go to next waypoint
           i++;
