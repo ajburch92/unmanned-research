@@ -188,19 +188,30 @@ public:
 		resize(frame,frameoutDown,size);
 	}
 
-	void downsampleGrid(Mat grid) {
-		gridDown = grid;
+	void downsampleGridHigh(Mat grid) {
+		gridDownHigh = grid;
 		scale_factor = 8; // this may not work for all resolutions. this value needs to match the value in astar. retrive from param launch file.
 		Size size(resizedFeed.cols / scale_factor , resizedFeed.rows / scale_factor); // this should be 160x120 
-		resize(grid,gridDown,size);
+		resize(grid,gridDownHigh,size);
+		//pyrDown( grid, gridDown, Size( grid.cols/scale_factor, grid.rows/scale_factor ) );
+		
+		gridDownLow = gridDownHigh;
+		Size size(resizedFeed.cols / scale_factor , resizedFeed.rows / scale_factor); // this should be 160x120 
+		resize(gridDownHigh,gridDownLow,size);
 		//pyrDown( grid, gridDown, Size( grid.cols/scale_factor, grid.rows/scale_factor ) );
 
 		//get size
-		gridDown_height = gridDown.rows ;
-		gridDown_width =  gridDown.cols ; 
+		gridDownLow_height = gridDownLow.rows ;
+		gridDownLow_width =  gridDownLow.cols ; 
 
-		ROS_INFO("downsampled occupancy grid height = %i" , gridDown_height);
-		ROS_INFO("downsampled occupancy grid width = %i" , gridDown_width);
+		//get size
+		gridDownHigh_height = gridDownHigh.rows ;
+		gridDownHigh_width =  gridDownHigh.cols ; 
+
+//		ROS_INFO("downsampled occupancy grid height = %i" , gridDownHigh_height);
+//		ROS_INFO("downsampled occupancy grid width = %i" , gridDownHigh_width);
+//		ROS_INFO("downsampled occupancy grid height = %i" , gridDownLow_height);
+//		ROS_INFO("downsampled occupancy grid width = %i" , gridDownLow_width);
 	}
 
 	void resizeFrame(Mat frame) {
@@ -495,6 +506,25 @@ public:
 	  objects_temp.clear();
 	}
 
+	void overlapState(int x, int y) {
+		
+		int xmax, xmin, ymax, ymin;
+
+		xmax = 10
+		xmin = 1
+		ymax = 10
+		ymin = 1
+
+		int dxmax = xmax - x ; 
+		int dxmin = xmin - x ; 
+
+		int dymax = ymax - y ; 
+		int dymin = ymin - y ; 
+		if (dx > 0 && dxmin < 0 && dymax > 0 && dymin < 0) {
+			overlapState = 1;
+		} else { overlapState = 0};
+	}
+
 
 	void trackObjects(Mat threshold, Mat &frame,vector<Object> objects, string name) { //object tracking
 
@@ -519,151 +549,139 @@ public:
 	  		int index = largestObject(contours); 
 	  		max_contour_index = double(index);
 
-	      //for (int index = 0; index < contours.size(); index++)
-	      //{
-	          Moments moment = moments((cv::Mat)contours[index]); //moments method
-	          double area = moment.m00;
+	        //for (int index = 0; index < contours.size(); index++) { // for all objects
+			Moments moment = moments((cv::Mat)contours[index]); //moments method
+			double area = moment.m00;
 
-	          x_temp = (int)moment.m10/area;       
+			//find pose
+			x_temp = (int)moment.m10/area;       
+			y_temp = (int)moment.m01/area; 
 
-	          y_temp = (int)moment.m01/area; 
+			//compare distances to past tracked objects
+			for (int i = 0; i<objects.size();i++) {
+				x_obj = (float)objects.at(i).getXPos(MEMORY_SIZE-1);
+				y_obj = (float)objects.at(i).getYPos(MEMORY_SIZE-1);
+				dist_temp = sqrt(pow((x_obj - (float)x_temp),2.0) + pow((y_obj - (float)y_temp),2.0));
+				dist.push_back(dist_temp);
+			}
 
-	          for (int i = 0; i<objects.size();i++) {
-	          	x_obj = (float)objects.at(i).getXPos(MEMORY_SIZE-1);
-	          	y_obj = (float)objects.at(i).getYPos(MEMORY_SIZE-1);
-	          	dist_temp = sqrt(pow((x_obj - (float)x_temp),2.0) + pow((y_obj - (float)y_temp),2.0));
-	          	dist.push_back(dist_temp);
-			  }
+          	// find object with min dist
+          	for (int j = 0 ; j<dist.size();j++)
+          	{
+          		if (dist[j] < dist[minPos])
+          		{
+          			minPos = j;
+        	  	}
+	        }
 
-	          	// find object with min dist
-	          	for (int j = 0 ; j<dist.size();j++)
-	          	{
-	          		if (dist[j] < dist[minPos])
-	          		{
-	          			minPos = j;
-	        	  	}
-		        }
+          	// if distance is in neighborhood, assign xy coordinates
+          	if (dist[minPos] < max_dist)  // VEHICLE FOUND 
+          	{
 
-	          	// if distance is in neighborhood, assign xy coordinates
-	          	if (dist[minPos] < max_dist)  // VEHICLE FOUND 
-	          	{
+          		// Set vehicle position
+               	x_obj = x_temp;
+               	y_obj = y_temp;
+
+          		objects.at(minPos).setXPos(x_obj);
+          		objects.at(minPos).setYPos(y_obj);
+
+          		// Check where vehicle is in frame / world
+          		overlapState(x_obj, y_obj)
+
+          		if (overlap_state > 0) { // if car is in overlapping region
+          			if (waypoint_proj_perc < 0.50) { // ready to switch 
+
+		  				local_bool = 1;
+          				// send pose to planner
+          				// send high res occupance grid 
+          				// calculate confidence
+
+          			} else {
+          				if (trajectory = notEmpty()) { // ready to handoff
+          					// handoff to other GS
+			
+							local_bool = 0;
+          					// send low res
+          					// send checkerboard coordinates, physical orientation, conversion factor
+          					// calc confidence
+          				}
+          			}
+          		} else { // overlap_state = 0, not in an overlapping area
 
 
-	          		// Set vehicle position
-	               	x_obj = x_temp;
-	               	y_obj = y_temp;
+		  			local_bool = 1;
+          			// send pose
+          			// send high res
+          			// calc confidence
 
-	          		objects.at(minPos).setXPos(x_obj);
-	          		objects.at(minPos).setYPos(y_obj);
+          		}
 
-	          		// Check where vehicle is in frame / world
-	          		if (in overlap) {
-	          			if (waypoint_proj_perc < 0.50) { // ready to switch 
-	          				// send pose to planner
+          	} else { // object too far away 
+          		
+          		if (proj_length < 3) { // VEHICLE FOUND : project vehicle position (or use past position), for up to three frames, then timeout.
+	          		int i=0;
+	          		x_obj = objects.at(i).getXPos(MEMORY_SIZE-1); // retrieve past object position.
+			  		y_obj = objects.at(i).getYPos(MEMORY_SIZE-1);
 
-	          				// send high res occupance grid 
-	          			
-	          				// calculate confidence
-	          			} else {
-	          				if (trajectory = notempty()) { // ready to handoff
-	          					// handoff to other GS
+			  		objects.at(i).setXPos(x_obj);
+			  		objects.at(i).setYPos(y_obj);
 
-	          					// send low res
-	          					
-	          					// send checkerboard coordinates, physical orientation, conversion factor
+		  			local_bool = 1;
+			  		// send pose
+			  		// send high res
+			  		// calc confidence
 
-	          					// calc confidence
-	          				}
-	          			}
-	          		} else { // staying in current region
+		  		} else {// VEHICLE NOT FOUND
 
-	          			// send pose
+		  			local_bool = 0;
+		  			// pub low res
+					// send checkerboard coordinates, physical orientation, conversion factor
+          			// calc confidence
 
-	          			// send high res
+				}
+          	}
 
-	          			// calc confidence
-
-	          		}
-
-	          	} else { // object too far away 
-	          		
-	          		if (proj_length < 3) { // VEHICLE FOUND : project vehicle position (or use past position), for up to three frames, then timeout.
-		          		int i=0;
-		          		x_obj = objects.at(i).getXPos(MEMORY_SIZE-1); // retrieve past object position.
-				  		y_obj = objects.at(i).getYPos(MEMORY_SIZE-1);
-
-				  		objects.at(i).setXPos(x_obj);
-				  		objects.at(i).setYPos(y_obj);
-
-				  		// send pose
-
-				  		// send high res
-
-				  		// calc confidence
-
-			  		} else {// vehicle not found 
-
-						// pub send low res
-
-						// send checkerboard coordinates, physical orientation, conversion factor
-
-	          			// calc confidence
-
-					}
-	          	}
-
-	          	dist.clear();
-	          	minPos = 0;
+	        dist.clear();
+	        minPos = 0;
 	 
-	          objectFound = true;
+	        objectFound = true;
 
-	      //}
+		} else { // no contours found
+			num_objects = 0;
+			// use guess at object travel as opposed to vision, otherwise the position index will remain zero, or last memory cycle value. 
+			for (int j = 0; j<objects.size(); j++) { //for each already existing object.
+				if (proj_length < 3) { // VEHICLE FOUND : project vehicle position (or use past position), for up to three frames, then timeout.
+					int i=0;
+					x_obj = objects.at(i).getXPos(MEMORY_SIZE-1); // retrieve past object position.
+					y_obj = objects.at(i).getYPos(MEMORY_SIZE-1);
 
-		} else
-		{
-		  num_objects = 0;
-		  // use guess at object travel as opposed to vision, otherwise the position index will remain zero, or last memory cycle value. 
-		  for (int j = 0; j<objects.size(); j++) { //for each already existing object.
-			  x_obj = objects.at(j).getXPos(MEMORY_SIZE-1); // retrieve past object position.
-			  y_obj = objects.at(j).getYPos(MEMORY_SIZE-1);
+					objects.at(i).setXPos(x_obj);
+					objects.at(i).setYPos(y_obj);
 
-			  //xdot_obj = objects.at(j).getXVel(MEMORY_SIZE-1); // retrieve past objects velocities
-		 	  //ydot_obj = objects.at(j).getYVel(MEMORY_SIZE-1);
+					local_bool = 1;
+					// send pose
+					// send high res
+					// calc confidence
 
-		 	  //x_obj = (int)((float)x_obj + xdot_obj * (float)FPS);
-		 	  //y_obj = (int)((float)y_obj + ydot_obj * (float)FPS);
+				} else { // VEHICLE NOT FOUND
 
+					local_bool = 0;
+					// pub send low res
+					// send checkerboard coordinates, physical orientation, conversion factor
+					// calc confidence
 
-/*
-			  x_obj = (int)pose_poly[VEHICLE_POSE_HISTORY_SIZE-1].x;
-			  y_obj = (int)pose_poly[VEHICLE_POSE_HISTORY_SIZE-1].y;
-*/
-			  objects.at(j).setXPos(x_obj);
-			  objects.at(j).setYPos(y_obj);
-			}	  	  
+				}
+			}		  	  
 		}
 		
-		//putText(frame,"CANT FIND OBJECTS",Point(0,50),1,2,Scalar(0,0,255),2); 
-		//}
-		  //draw object location on screen
-
-		//if vehicle, publish x,y,th .... if goal, publish x,y
 		x = double(x_obj);
 		y = double(y_obj);
-		//th = atan2(y,x);
 
-		//virtual_infrastructure_pkg::vehicle_pose vehicle_pose_msg;
-		//virtual_infrastructure_pkg::goal_pose goal_pose_msg;
 		geometry_msgs::Pose2D vehicle_pose_msg;
-		geometry_msgs::Pose2D goal_pose_msg;
 
 		if (name=="vehicle") { // vehicle
 
-
-            // Save vehicle location
 			vehicle_pose = Point(x, y);
-
-			//pca analysis
 
 			vehicle_pose_msg.x = x;
 			vehicle_pose_msg.y = y;
@@ -671,34 +689,22 @@ public:
 			double recent_dist_travel = polyOrientation(frame);
 			if (recent_dist_travel < 10) 
 			{
+			} else { vehicle_orientation_angle = poly_vehicle_orientation_angle;
 				pcaOrientation(contours[max_contour_index],frame);
 				headingFilter();
-			} else { vehicle_orientation_angle = poly_vehicle_orientation_angle;}
+			}
 	
 			vehicle_pose_msg.theta = vehicle_orientation_angle;
 			prev_vehicle_orientation_angle = vehicle_orientation_angle;
-			//convert to radians
 			
 			vehicle_pose_msg.theta = vehicle_pose_msg.theta*CV_PI/180;
 			th = vehicle_pose_msg.theta;
-
-//			circle(frame,Point(objects.at(0).getXPos(MEMORY_SIZE-1),objects.at(0).getYPos(MEMORY_SIZE-1)),LOS_RADIUS, Scalar(102, 178, 255));
-
-/*			// draw target angle vector
-			Point target_angle_endpoint;
-		    target_angle_endpoint.x = (int) round(vehicle_pose.x + LOS_RADIUS * cos(target_angle));
-		    target_angle_endpoint.y = (int) round(vehicle_pose.y + LOS_RADIUS * sin(target_angle));		    
-		    line(frame, vehicle_pose, target_angle_endpoint, Scalar(255, 128, 0), HEADING_LINE_THICKNESS, 8, 0);*/
-
 
 			ROS_INFO("vehicle pose: ( %f , %f ) : th = %f ",x,y,th);
 			rgb_vehicle_pub.publish(vehicle_pose_msg); 
 		}
 		else if (name=="goal") { // goal
-			goal_pose_msg.x = x;
-			goal_pose_msg.y = y;
 			ROS_INFO("goal pose: ( %i , %i ) ",x_obj,y_obj);
-			rgb_goal_pub.publish(goal_pose_msg); 
 		} else {};
 
 		drawObject(objects,frame, contours,hierarchy);
@@ -976,7 +982,12 @@ public:
 	      img_bridge.toImageMsg(img_msg); // from cv _bridge to sensor_msgs::Image
 	      rgb_pub_.publish(img_msg); 
 
-	      occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, gridDown);
+	      if (local_bool > 0) { // send high res occupancy grid
+		      occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8,gridDownHigh);
+	      } else { // send low res occupancy grid
+		      occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, gridDownLow);
+	      }
+	
 	      occupancy_bridge.toImageMsg(occupancyGrid_msg);
 	      occupancyGrid_pub.publish(occupancyGrid_msg);
 
@@ -1015,7 +1026,8 @@ private:
 		//Mat occupancyGrid;
 	Mat birdgrayFeed;
 	Mat birdseyeFeed_adjusted;
-	Mat gridDown;
+	Mat gridDownLow;
+	Mat gridDownHigh;
 	Mat frameoutDown;
 	//Mat occupancyGrid;
 	//background subtraction global variables.
@@ -1159,8 +1171,10 @@ private:
 	double height_factor, width_factor;
 	int scale_factor; 
 
-	int gridDown_height;
-	int gridDown_width;
+	int gridDownLow_height;
+	int gridDownLow_width;
+	int gridDownHigh_height;
+	int gridDownHigh_width;
 
 	double x_target_wp = 0;
 	double y_target_wp = 0;
@@ -1188,7 +1202,9 @@ private:
 	int arm_bool = 0;
 	double confidence = 0;
 	int ID_num ;
+	int overlap_state = 0;
 
+	local_bool = 0;
 
 };
 
