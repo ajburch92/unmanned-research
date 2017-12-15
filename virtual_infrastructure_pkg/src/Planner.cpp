@@ -63,6 +63,7 @@ double x_vehicle, y_vehicle, x_wp, y_wp;
 vector<Point> vector_wp;
 
 double conv_fac;
+double ID_num;
 
 int arm_bool;
 
@@ -255,14 +256,29 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "vehicle_planner");
   ros::NodeHandle n;
 
-  sub_vehicle = n.subscribe("/vehicle_pose",20, &vehicleCallback);
-  sub_wp = n.subscribe("/wp_pose",20, &waypointCallback);
-  sub_conv_fac = n.subscribe("/conv_fac",20, &convFacCallback);
-  sub_arm_bool = n.subscribe("/arm_bool",20, &armCallback);
+  //n.param("ID_num",ID_num,-1);
 
-  target_angle_pub = n.advertise<std_msgs::Float64>("/target_angle",2);
-  target_speed_pub = n.advertise<std_msgs::Float64>("/target_speed",2);
-  target_wp_pub = n.advertise<geometry_msgs::Pose2D>("/target_wp",2);
+  stringstream ss;
+  ss << ID_num;
+  string s;
+  s = ss.str();
+
+  string conv_fac = "/conv_fac" + s ;
+  string vehicle_pose = "/vehicle_pose" + s ;
+  string wp_pose = "/wp_pose" + s ;
+  string arm_bool = "/arm_bool" + s ;
+  string target_angle = "/target_angle" + s ;
+  string target_speed = "/target_speed" + s ;
+  string target_wp = "/target_wp" + s ;
+
+  sub_vehicle = n.subscribe(vehicle_pose,20, &vehicleCallback);
+  sub_wp = n.subscribe(wp_pose,20, &waypointCallback);
+  sub_conv_fac = n.subscribe(conv_fac,20, &convFacCallback);
+  sub_arm_bool = n.subscribe(arm_bool,20, &armCallback);
+
+  target_angle_pub = n.advertise<std_msgs::Float64>(target_angle,2);
+  target_speed_pub = n.advertise<std_msgs::Float64>(target_speed,2);
+  target_wp_pub = n.advertise<geometry_msgs::Pose2D>(target_wp,2);
 
   
   ros::spin();

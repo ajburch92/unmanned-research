@@ -4,6 +4,7 @@
 #include <std_msgs/Float64.h>
 #include <geometry_msgs/Pose2D.h>
 
+using namespace std; 
 
 class Odom
 {
@@ -12,8 +13,19 @@ public:
 	{
 		current_time = ros::Time::now();
 		last_time = ros::Time::now();
-		odom_pub = nh_odom.advertise<nav_msgs::Odometry>("/vehicle_odom", 2);
-		sub = nh_odom.subscribe("/vehicle_pose",20, &Odom::positionCallback, this);
+
+
+	    //nh_odom.param("ID_num",ID_num,-1);
+
+		stringstream ss;
+		ss << ID_num;
+		string s;
+		s = ss.str();
+
+		string vehicle_pose = "/vehicle_pose" + s ;
+		string vehicle_odom = "/vehicle_odom" + s ;
+		sub = nh_odom.subscribe(vehicle_pose,20, &Odom::positionCallback, this);
+		odom_pub = nh_odom.advertise<nav_msgs::Odometry>(vehicle_odom, 2);
 
 		x = 0.0;
 		y = 0.0;
@@ -100,6 +112,7 @@ private:
 	double vth;
 	double dt;
 
+	int ID_num;
 };
 
 int main(int argc, char** argv){

@@ -59,9 +59,17 @@ int yB = 0;
 
 int subgoal = 0;
 
-Mat gridDown(n,m,CV_8UC1,Scalar(0));
-Mat pathDown(n,m,CV_8UC1,Scalar(0));
-Mat occupancyGrid(n,m,CV_8UC1,Scalar(0));
+Mat gridDownLocal(n,m,CV_8UC1,Scalar(0));
+Mat occupancyGridLocal(n,m,CV_8UC1,Scalar(0));
+Mat gridDownRemote(n,m,CV_8UC1,Scalar(0));
+Mat occupancyGridRemote(n,m,CV_8UC1,Scalar(0));
+
+double conv_facLocal;
+double conv_facRemote;
+double confidenceLocal;
+double confidenceRemote;
+int ID_num;
+int other_num;
 
 class node
 {
@@ -245,10 +253,6 @@ string pathFind( const int & xStart, const int & yStart,
     return ""; // no route found
 }
 
-void upsampleGrid () {
-	pyrUp( gridDown, occupancyGrid, Size( gridDown.cols*scale_factor, gridDown.rows*scale_factor) );
-}
-
 
 void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
 {
@@ -264,7 +268,32 @@ void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg)
     ROS_INFO("vehicleCallback (xA, yA): ( %i , %i )",xA,yA);
 }
 
-/*void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg) 
+void confidenceLocalCallback (const std_msgs::Float64::ConstPtr& conv_fac_msg) 
+{
+    confidenceLocal = conv_fac_msg -> data;
+
+}
+
+void confidenceRemoteCallback (const std_msgs::Float64::ConstPtr& conv_fac_msg) 
+{
+    confidenceRemote = conv_fac_msg -> data;
+
+}
+
+void conv_facLocalCallback (const std_msgs::Float64::ConstPtr& conv_fac_msg) 
+{
+    conv_facLocal = conv_fac_msg -> data;
+
+}
+
+void conv_facRemoteCallback (const std_msgs::Float64::ConstPtr& conv_fac_msg) 
+{
+    conv_facRemote = conv_fac_msg -> data;
+
+}
+
+
+void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg) 
 {
     double xtemp, ytemp;
     xtemp = goal_pose_msg->x;
@@ -276,7 +305,7 @@ void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg)
     //yB = (int)ytemp;
 
     ROS_INFO("goalCallback: ( %i , %i )",xB,yB);
-}*/
+}
 
 void goal_outCallback (const geometry_msgs::PoseArray::ConstPtr& goal_out_pose_msg) 
 {
@@ -316,14 +345,14 @@ void goal_outCallback (const geometry_msgs::PoseArray::ConstPtr& goal_out_pose_m
 
 }
 
-void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg) 
+void occupancyGridLocalCallback (const sensor_msgs::ImageConstPtr& msg) 
 {
     // fillout the grid matrix with a '+' pattern
 	cv_bridge::CvImagePtr occupancyGrid_ptr;
 
-	gridDown.setTo(Scalar(0));
-	occupancyGrid.setTo(Scalar(0));
-	gridDown.setTo(Scalar(0));
+	gridDownLocal.setTo(Scalar(0));
+	occupancyGridLocal.setTo(Scalar(0));
+	gridDownLocal.setTo(Scalar(0));
 	
 	try
 	{
@@ -336,7 +365,7 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
 		return;
 	}
 
-    gridDown = occupancyGrid_ptr -> image;
+    gridDownLocal = occupancyGrid_ptr -> image;
 
     // convert to grid size - ALREADY DOWN SAMPLED, JUST NEED TO INCREASE RESOLUTION UPON PUBLISHING
     //memcpy(gridDown.data, grid,n*m*sizeof(int)
@@ -345,7 +374,7 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
     {
 		for (int y = 1; y<=m; y++)
 		{
-			int pix = (int)gridDown.at<uchar>(y,x);
+			int pix = (int)gridDownLocal.at<uchar>(y,x);
 			if (pix > 0) // obstacle
 			{
 				grid[x][y] = 1;
@@ -420,23 +449,23 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
                 else if(grid[x][y]==1)
                 {
                     //cout<<"O"; //obstacle
-                    occupancyGrid.at<uchar>(Point(x,y)) = 255;
+                    occupancyGridLocal.at<uchar>(Point(x,y)) = 255;
                 }
                 else if(grid[x][y]==2)
                 {
                     //cout<<"S"; //start
-                    circle(occupancyGrid, Point(x,y), 2, 125,2);
+                    circle(occupancyGridLocal, Point(x,y), 2, 125,2);
 
                 }
                 else if(grid[x][y]==3)
                 {
-                    occupancyGrid.at<uchar>(Point(x,y)) = 150;
+                    occupancyGridLocal.at<uchar>(Point(x,y)) = 150;
                     //circle(occupancyGrid, Point(x,y), 1,255,1);
                 }
                 else if(grid[x][y]==4)
                 {
                     //cout<<"F"; //finish
-                    circle(occupancyGrid, Point(x,y), 2,175,2);
+                    circle(occupancyGridLocal, Point(x,y), 2,175,2);
                 }
             //cout<<endl;
             }
@@ -446,7 +475,7 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
     ROS_INFO("poseArray published");
 	wp_pub.publish(poseArray); 
     
-    occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, occupancyGrid);
+    occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, occupancyGridLocal);
     occupancy_bridge.toImageMsg(occupancyGrid_msg);
     path_pub.publish(occupancyGrid_msg);
 
@@ -461,10 +490,65 @@ void occupancyGridCallback (const sensor_msgs::ImageConstPtr& msg)
 
 }
 
+void occupancyGridRemoteCallback (const sensor_msgs::ImageConstPtr& msg) 
+{
+    // fillout the grid matrix with a '+' pattern
+	cv_bridge::CvImagePtr occupancyGrid_ptr;
+
+	gridDownRemote.setTo(Scalar(0));
+	occupancyGridRemote.setTo(Scalar(0));
+	gridDownRemote.setTo(Scalar(0));
+	
+	try
+	{
+		occupancyGrid_ptr  = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::MONO8);
+		ROS_INFO("cv_bridge msg read");
+	}
+	catch (cv_bridge::Exception& e)
+	{
+		ROS_INFO("cv_bridge exception: %s", e.what());
+		return;
+	}
+
+    gridDownRemote = occupancyGrid_ptr -> image;
+}
+
 
 
 int main(int argc, char **argv)
 {
+
+    // init ROS node
+    ros::init(argc, argv, "astar_planner");
+    ros::NodeHandle node;
+
+    //node.param("ID_num",ID_num,-1);
+
+	stringstream ss;
+	ss << ID_num;
+	string s;
+	s = ss.str();
+
+	if (ID_num == 1) {
+		other_num = 0;
+	} else {
+		other_num = 1;
+	}
+	stringstream other_ss;
+	other_ss << other_num;
+	string other_s;
+	other_s = ss.str();
+
+	string conv_facLocal = "/conv_fac" + s ;
+    string conv_facRemote = "/conv_fac" + other_s;
+	string occupancyGridLocal = "/occupancyGrid" + s ;
+	string occupancyGridRemote = "/occupancyGrid" + other_s ;
+	string vehicle_pose_s = "/vehicle_pose" + s ;
+	string confidenceLocal = "/confidence" + s ;
+	string confidenceRemote = "/confidence" + other_s;
+	string pathGrid = "/pathGrid" + s ;
+	string wp_pose = "/wp_pose" + s ;
+
 
     srand(time(NULL));
 
@@ -477,19 +561,23 @@ int main(int argc, char **argv)
 	vehicle_pose.x = 0;
 	vehicle_pose.y = 0;
 
-    // init ROS node
-    ros::init(argc, argv, "astar_planner");
-    ros::NodeHandle node;
+
     // subscibe to vision outputs
     image_transport::ImageTransport it_astar(node);
-	image_transport::Subscriber sub_occupancyGrid = it_astar.subscribe("/occupancyGrid",1, &occupancyGridCallback); // use image_rect
-    ros::Subscriber sub_vehicle = node.subscribe("/vehicle_pose",2, &vehicleCallback);
+	image_transport::Subscriber sub_occupancyGridLocal = it_astar.subscribe(occupancyGridLocal,1, &occupancyGridLocalCallback); // use image_rect
+	image_transport::Subscriber sub_occupancyGridRemote = it_astar.subscribe(occupancyGridRemote,1, &occupancyGridRemoteCallback); // use image_rect
+
+    ros::Subscriber sub_vehicle = node.subscribe(vehicle_pose_s,2, &vehicleCallback);
     //ros::Subscriber sub_goal = node.subscribe("/goal_pose",2, &goalCallback);
-    ros::Subscriber sub_goal_out = node.subscribe("/goal_pose_out",2, &goal_outCallback);
+    ros::Subscriber sub_goal_out = node.subscribe("goal_pose_out",2, &goal_outCallback);
+    ros::Subscriber sub_conv_facLocal = node.subscribe(conv_facLocal,2, &conv_facLocalCallback);
+    ros::Subscriber sub_conv_facRemote = node.subscribe(conv_facRemote,2, &conv_facRemoteCallback);
+    ros::Subscriber sub_confidenceLocal = node.subscribe(confidenceLocal,2, &confidenceLocalCallback);
+    ros::Subscriber sub_confidenceRemote = node.subscribe(confidenceLocal,2, &confidenceRemoteCallback);
 
     // publish topics for the output visualization and for the next waypoint for the low level controller.
-    path_pub = it_astar.advertise("/pathGrid",1);
-	wp_pub = node.advertise<geometry_msgs::PoseArray>("wp_pose",2);
+    path_pub = it_astar.advertise(pathGrid,1);
+	wp_pub = node.advertise<geometry_msgs::PoseArray>(wp_pose,2);
     
     ROS_INFO("Start path planning operations");
 

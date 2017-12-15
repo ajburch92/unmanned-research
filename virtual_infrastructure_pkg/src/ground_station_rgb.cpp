@@ -50,41 +50,62 @@ public:
 	RGBImageProcessor()
 	{
 
-	ros::NodeHandle nh_rgb;
-	image_transport::ImageTransport it_rgb(nh_rgb);
-	rgb_sub_ = it_rgb.subscribe("/camera/image_rect_color",1, &RGBImageProcessor::rgbFeedCallback, this); // use image_rect
-	rgb_pub_ = it_rgb.advertise("/ground_station_rgb",1);
-	conv_fac_pub = nh_rgb.advertise<std_msgs::Float64>("conv_fac",2);
-	occupancyGrid_pub = it_rgb.advertise("/occupancyGrid" , 1);
-	rgb_vehicle_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("vehicle_pose",2);
-	rgb_goal_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("goal_pose",2);
-	rgb_arm_bool_pub = nh_rgb.advertise<std_msgs::Float64>("arm_bool",2);
-	key_cmd_sub = nh_rgb.subscribe("/key_cmd" , 2 , &RGBImageProcessor::keyCallback, this);
-/*	sub_target_wp = nh_rgb.subscribe("/target_wp",2, &RGBImageProcessor::targetwpCallback,this);
-	sub_vector_wp = nh_rgb.subscribe("/wp_pose",2, &RGBImageProcessor::vectorwpCallback,this);
-	sub_target_angle = nh_rgb.subscribe("/target_angle",2, &RGBImageProcessor::targetAngleCallback,this);*/
+		ros::NodeHandle nh_rgb;
+		image_transport::ImageTransport it_rgb(nh_rgb);
 
-	// store launch params
-	//nh_rgb.param("checkerboard_width", checkerboard_width, -1);
-	//nh_rgb.param("checkerboard_height", checkerboard_height, -1);
-	checkerboard_height = 0.3 ; // meters
-	checkerboard_width = 0.55 ; // meters
 
-	//create background subtractor object
+		// store launch params
+		//nh_rgb.param("checkerboard_width", checkerboard_width, -1);
+		//nh_rgb.param("checkerboard_height", checkerboard_height, -1);
 
-	pMOG = new BackgroundSubtractorMOG();
+		//nh_rgb.param("ID_num",ID_num,-1);
 
-	// Set each element in history to 0
-	for (int i = 0; i < VEHICLE_POSE_HISTORY_SIZE; i++) {
-	    vehicle_pose_history[i] = Point(0, 0);
-	}
+		stringstream ss;
+		ss << ID_num;
+		string s;
+		s = ss.str();
 
-	Mat cam_intrinsic_mat = (Mat_<double>(3,3) << 
-		1257.9354531133 , 0.0 , 711.8948570519622,
-		0.0, 1258.482033400394, 459.2775748027645,
-		0.0, 0.0, 1.0);
-	Mat cam_dist_vec = (Mat_<double>(1,5) <<
-		-0.09831822598667773, 0.1015705125684106, -0.002485105904864273, 0.01055372647729187, 0.0);
+		string image_rect_color = "/camera" + s + "/image_rect_color" ;
+		string ground_station_rgb = "/ground_station_rgb" + s ; 
+		string conv_fac = "/conv_fac" + s ;
+		string occupancyGrid = "/occupancyGrid" + s ;
+		string vehicle_pose = "/vehicle_pose" + s ;
+		string arm_bool = "/arm_bool" + s ;
+		string confidence = "/confidence" + s ;
+		string wp_pose = "/wp_pose" + s ;
+
+		rgb_sub_ = it_rgb.subscribe(image_rect_color,1, &RGBImageProcessor::rgbFeedCallback, this); // use image_rect
+		rgb_pub_ = it_rgb.advertise(ground_station_rgb,1);
+		conv_fac_pub = nh_rgb.advertise<std_msgs::Float64>(conv_fac,2);
+		occupancyGrid_pub = it_rgb.advertise(occupancyGrid , 1);
+		rgb_vehicle_pub = nh_rgb.advertise<geometry_msgs::Pose2D>(vehicle_pose,2);
+		//rgb_goal_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("goal_pose",2);
+		rgb_arm_bool_pub = nh_rgb.advertise<std_msgs::Float64>(arm_bool,2);
+		rgb_confidence_pub = nh_rgb.advertise<std_msgs::Float64>(confidence,2);
+		key_cmd_sub = nh_rgb.subscribe("/key_cmd" , 2 , &RGBImageProcessor::keyCallback, this);
+	//	sub_target_wp = nh_rgb.subscribe("/target_wp",2, &RGBImageProcessor::targetwpCallback,this);
+		sub_vector_wp = nh_rgb.subscribe(wp_pose,2, &RGBImageProcessor::vectorwpCallback,this);
+	//	sub_target_angle = nh_rgb.subscribe("/target_angle",2, &RGBImageProcessor::targetAngleCallback,this);*/
+
+
+		checkerboard_height = 0.3 ; // meters
+		checkerboard_width = 0.55 ; // meters
+
+		//create background subtractor object
+
+		pMOG = new BackgroundSubtractorMOG();
+
+		// Set each element in history to 0
+		for (int i = 0; i < VEHICLE_POSE_HISTORY_SIZE; i++) {
+		    vehicle_pose_history[i] = Point(0, 0);
+		}
+
+		Mat cam_intrinsic_mat = (Mat_<double>(3,3) << 
+			1257.9354531133 , 0.0 , 711.8948570519622,
+			0.0, 1258.482033400394, 459.2775748027645,
+			0.0, 0.0, 1.0);
+		Mat cam_dist_vec = (Mat_<double>(1,5) <<
+			-0.09831822598667773, 0.1015705125684106, -0.002485105904864273, 0.01055372647729187, 0.0);
 
 	}
 
@@ -98,6 +119,7 @@ public:
 		ss << number;
 		return ss.str();
 	}
+
 
 	void keyCallback (const std_msgs::Int8::ConstPtr& key_cmd_msg) 
 	{
@@ -198,13 +220,13 @@ public:
 			drawContours(frame,contours,-1,white,2,8,hierarchy);
 		}
 
-		//draw path and target WP
+/*		//draw path and target WP - NOW IN DATA PROCESSOR VISUALIZATION
 		int size = vector_wp.size();
 		ROS_INFO("wp vector size = %i",size);
 		Scalar path_color = Scalar(0,255,0);
 		Scalar wp_color = Scalar(255,50,0);
 
-/*    	for (int i=0;i<size;i++)
+    	for (int i=0;i<size;i++)
     	{
     		circle(frame,vector_wp[i], 2, path_color,2);
     		ROS_INFO("wp:%i,%i",vector_wp[i].x,vector_wp[i].y);
@@ -476,17 +498,12 @@ public:
 
 	void trackObjects(Mat threshold, Mat &frame,vector<Object> objects, string name) { //object tracking
 
-	  // similar contour detection
-
 		Mat temp;
-
 		threshold.copyTo(temp);
-
 		findContours(temp,contours,hierarchy,CV_RETR_CCOMP,CV_CHAIN_APPROX_SIMPLE );
 
 		bool objectFound = false;
-	  // init
-		int x_obj, y_obj, x_temp, y_temp, num_objects;
+	  	int x_obj, y_obj, x_temp, y_temp, num_objects;
 		float dist_temp, xdot_obj, ydot_obj;
 		int minPos = 0;
 	  	float max_dist = 1000; //pixels
@@ -494,8 +511,9 @@ public:
 	  	double x,y,th;
 	  	double max_contour_index;
 
-	  if (hierarchy.size() > 0) {
-	  	num_objects = hierarchy.size();
+	  	if (hierarchy.size() > 0) { // if contours are found
+	  		
+	  		num_objects = hierarchy.size();
 
 	  		//find largest object
 	  		int index = largestObject(contours); 
@@ -525,39 +543,74 @@ public:
 	          			minPos = j;
 	        	  	}
 		        }
-	          	// if distance is in neighborhood, assign xy coordinates
 
-	          	if (dist[minPos] < max_dist) 
+	          	// if distance is in neighborhood, assign xy coordinates
+	          	if (dist[minPos] < max_dist)  // VEHICLE FOUND 
 	          	{
 
+
+	          		// Set vehicle position
 	               	x_obj = x_temp;
 	               	y_obj = y_temp;
 
 	          		objects.at(minPos).setXPos(x_obj);
 	          		objects.at(minPos).setYPos(y_obj);
 
+	          		// Check where vehicle is in frame / world
+	          		if (in overlap) {
+	          			if (waypoint_proj_perc < 0.50) { // ready to switch 
+	          				// send pose to planner
 
+	          				// send high res occupance grid 
+	          			
+	          				// calculate confidence
+	          			} else {
+	          				if (trajectory = notempty()) { // ready to handoff
+	          					// handoff to other GS
 
-	          	} else { // object too far away - project current position
-	          		int i=0;
-	          		x_obj = objects.at(i).getXPos(MEMORY_SIZE-1); // retrieve past object position.
-			  		y_obj = objects.at(i).getYPos(MEMORY_SIZE-1);
-			  		//xdot_obj = objects.at(i).getXVel(MEMORY_SIZE-1); // retrieve past objects velocities
-		 	  		//ydot_obj = objects.at(i).getYVel(MEMORY_SIZE-1);
+	          					// send low res
+	          					
+	          					// send checkerboard coordinates, physical orientation, conversion factor
 
-		 	  		//x_obj = (int)(x_obj + xdot_obj * FPS);
-		 	  		//y_obj = (int)(y_obj + ydot_obj * FPS);
-	               	
+	          					// calc confidence
+	          				}
+	          			}
+	          		} else { // staying in current region
 
-	             	//objects.push_back(object_temp); // only track desired number of objects for right now, match to nearest object, ignore rest.
-/*	          		x_obj = (int)pose_poly[VEHICLE_POSE_HISTORY_SIZE-1].x;
-			  		y_obj = (int)pose_poly[VEHICLE_POSE_HISTORY_SIZE-1].y;
-*/
-			  		objects.at(i).setXPos(x_obj);
-			  		objects.at(i).setYPos(y_obj);
+	          			// send pose
+
+	          			// send high res
+
+	          			// calc confidence
+
+	          		}
+
+	          	} else { // object too far away 
+	          		
+	          		if (proj_length < 3) { // VEHICLE FOUND : project vehicle position (or use past position), for up to three frames, then timeout.
+		          		int i=0;
+		          		x_obj = objects.at(i).getXPos(MEMORY_SIZE-1); // retrieve past object position.
+				  		y_obj = objects.at(i).getYPos(MEMORY_SIZE-1);
+
+				  		objects.at(i).setXPos(x_obj);
+				  		objects.at(i).setYPos(y_obj);
+
+				  		// send pose
+
+				  		// send high res
+
+				  		// calc confidence
+
+			  		} else {// vehicle not found 
+
+						// pub send low res
+
+						// send checkerboard coordinates, physical orientation, conversion factor
+
+	          			// calc confidence
+
+					}
 	          	}
-
-
 
 	          	dist.clear();
 	          	minPos = 0;
@@ -654,18 +707,6 @@ public:
 
 	}
 
-/*	void targetAngleCallback (const std_msgs::Float64::ConstPtr& target_angle_msg) 
-	{
-		target_angle = target_angle_msg -> data;
-	    ROS_INFO("targetAngleCallback: ( %f )",target_angle);
-	}
-
-	void targetwpCallback (const geometry_msgs::Pose2D::ConstPtr& target_wp_msg) 
-	{
-	    x_target_wp  = target_wp_msg->x;
-	    y_target_wp = target_wp_msg->y;
-	    ROS_INFO("targetwpCallback: ( %f , %f )",x_target_wp,y_target_wp);
-	}
 
 	void vectorwpCallback (const geometry_msgs::PoseArray::ConstPtr& vector_wp_msg) 
 	{
@@ -676,7 +717,7 @@ public:
     	{
     		vector_wp.push_back(Point((int)vector_wp_msg->poses[i].position.x,(int)vector_wp_msg->poses[i].position.y));
 		}
-	}*/
+	}
 	
 	void rgbFeedCallback(const sensor_msgs::ImageConstPtr& msg)
 	{
@@ -926,9 +967,9 @@ public:
 	      //imshow(windowName1,objectFeed);
 		  //cv::waitKey(30); //wait for esc key
 
-			std_msgs::Float64 arm_bool_msg;
-			arm_bool_msg.data = arm_bool;
-			rgb_arm_bool_pub.publish(arm_bool_msg);
+		  std_msgs::Float64 arm_bool_msg;
+		  arm_bool_msg.data = arm_bool;
+		  rgb_arm_bool_pub.publish(arm_bool_msg);
 
 	      // Output modified video stream
 	      img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, objectFeed);
@@ -938,6 +979,10 @@ public:
 	      occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, gridDown);
 	      occupancy_bridge.toImageMsg(occupancyGrid_msg);
 	      occupancyGrid_pub.publish(occupancyGrid_msg);
+
+	      std_msgs::Float64 confidence_msg;
+	      confidence_msg.data = confidence;
+		  rgb_confidence_pub.publish(confidence_msg);
 
 	      counter++;
 	  }
@@ -1094,6 +1139,7 @@ private:
 	ros::Publisher rgb_goal_pub;
 	ros::Publisher conv_fac_pub;
 	ros::Publisher rgb_arm_bool_pub;
+	ros::Publisher rgb_confidence_pub;
 
 	Mat background;
 	image_transport::Subscriber rgb_sub_;
@@ -1101,8 +1147,8 @@ private:
 	image_transport::Publisher occupancyGrid_pub;
 
 	ros::Subscriber key_cmd_sub;
-/*	ros::Subscriber sub_target_wp;
-	ros::Subscriber sub_vector_wp;*/
+//	ros::Subscriber sub_target_wp;
+	ros::Subscriber sub_vector_wp;
 
 
 	double checkerboard_height = 1;
@@ -1140,6 +1186,8 @@ private:
 	vector<Point> pose_poly;
 
 	int arm_bool = 0;
+	double confidence = 0;
+	int ID_num ;
 
 
 };

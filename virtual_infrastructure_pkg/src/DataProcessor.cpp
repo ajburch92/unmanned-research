@@ -77,12 +77,19 @@ public:
 	key_cmd_pub = nh.advertise<std_msgs::Int8>("/key_cmd",1);
 
 
-	sub_rgb = it_nh.subscribe("/ground_station_rgb",5, &DataProcessor::rgbFeedCallback, this); 
-	sub_target_wp = nh.subscribe("/target_wp",5, &DataProcessor::targetwpCallback,this);
-	sub_vector_wp = nh.subscribe("/wp_pose",5, &DataProcessor::vectorwpCallback,this);
-	sub_target_angle = nh.subscribe("/target_angle",5, &DataProcessor::targetAngleCallback,this);
-	sub_conv_fac = nh.subscribe("/conv_fac",5, &DataProcessor::convFacCallback,this);
-	sub_vehicle = nh.subscribe("/vehicle_pose",5, &DataProcessor::vehicleCallback, this);
+	sub_rgb1 = it_nh.subscribe("/ground_station_rgb1",5, &DataProcessor::rgbFeed1Callback, this); 
+	sub_target_wp1 = nh.subscribe("/target_wp1",5, &DataProcessor::targetwp1Callback,this);
+	sub_vector_wp1 = nh.subscribe("/wp_pose1",5, &DataProcessor::vectorwp1Callback,this);
+	sub_target_angle1 = nh.subscribe("/target_angle1",5, &DataProcessor::targetAngle1Callback,this);
+	sub_conv_fac1 = nh.subscribe("/conv_fac1",5, &DataProcessor::convFac1Callback,this);
+	sub_vehicle1 = nh.subscribe("/vehicle_pose1",5, &DataProcessor::vehicle1Callback, this);
+/*
+	sub_rgb2 = it_nh.subscribe("/ground_station_rgb2",5, &DataProcessor::rgbFeed2Callback, this); 
+	sub_target_wp2 = nh.subscribe("/target_wp2",5, &DataProcessor::targetwp2Callback,this);
+	sub_vector_wp2 = nh.subscribe("/wp_pose2",5, &DataProcessor::vectorwp2Callback,this);
+	sub_target_angle2 = nh.subscribe("/target_angle2",5, &DataProcessor::targetAngle2Callback,this);
+	sub_conv_fac2 = nh.subscribe("/conv_fac2",5, &DataProcessor::convFac2Callback,this);
+	sub_vehicle2 = nh.subscribe("/vehicle_pose2",5, &DataProcessor::vehicle2Callback, this);*/
     //sub_goal = nh.subscribe("/goal_pose",20, &DataProcessor::goalCallback, this);
 
 
@@ -113,27 +120,27 @@ public:
 
 	}
 
-	void convFacCallback (const std_msgs::Float64::ConstPtr& conv_fac_msg) 
+	void convFac1Callback (const std_msgs::Float64::ConstPtr& conv_fac_msg) 
 	{
 		conv_fac = conv_fac_msg -> data;
 	    ROS_INFO("convFacCallback: ( %f )",conv_fac);
 	}
 
 
-	void targetAngleCallback (const std_msgs::Float64::ConstPtr& target_angle_msg) 
+	void targetAngle1Callback (const std_msgs::Float64::ConstPtr& target_angle_msg) 
 	{
 		target_angle = target_angle_msg -> data;
 	    ROS_INFO("targetAngleCallback: ( %f )",target_angle);
 	}
 
-	void targetwpCallback (const geometry_msgs::Pose2D::ConstPtr& target_wp_msg) 
+	void targetwp1Callback (const geometry_msgs::Pose2D::ConstPtr& target_wp_msg) 
 	{
 	    target_wp.x  = target_wp_msg->x;
 	    target_wp.y = target_wp_msg->y;
 	    ROS_INFO("targetwpCallback: ( %i , %i )",target_wp.x,target_wp.y);
 	}
 
-	void vectorwpCallback (const geometry_msgs::PoseArray::ConstPtr& vector_wp_msg) 
+	void vectorwp1Callback (const geometry_msgs::PoseArray::ConstPtr& vector_wp_msg) 
 	{
     	ROS_INFO("vectorwpDownCallback");
     	vector_wp.clear();
@@ -144,7 +151,7 @@ public:
 		}
 	}
 
-	void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
+	void vehicle1Callback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
 	{
 		double xtemp, ytemp;
 	    xtemp = vehicle_pose_msg->x;
@@ -157,19 +164,50 @@ public:
 	    ROS_INFO("vehicleCallback: ( %i , %i )",vehicle_pose.x,vehicle_pose.y);
 	}
 
-
-
-/*	void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg) 
+	/*	void convFac2Callback (const std_msgs::Float64::ConstPtr& conv_fac_msg) 
 	{
-	    double xtemp, ytemp;
-	    xtemp = goal_pose_msg->x;
-	    ytemp = goal_pose_msg ->y;
-	    //translate to downsampled coordinates
-	    goal_pose.x  = (int)xtemp;
-	    goal_pose.y = (int)ytemp;
+		conv_fac = conv_fac_msg -> data;
+	    ROS_INFO("convFacCallback: ( %f )",conv_fac);
+	}
 
-	    ROS_INFO("goalCallback: ( %i , %i )",goal_pose.x,goal_pose.y);
+
+	void targetAngle2Callback (const std_msgs::Float64::ConstPtr& target_angle_msg) 
+	{
+		target_angle = target_angle_msg -> data;
+	    ROS_INFO("targetAngleCallback: ( %f )",target_angle);
+	}
+
+	void targetwp2Callback (const geometry_msgs::Pose2D::ConstPtr& target_wp_msg) 
+	{
+	    target_wp.x  = target_wp_msg->x;
+	    target_wp.y = target_wp_msg->y;
+	    ROS_INFO("targetwpCallback: ( %i , %i )",target_wp.x,target_wp.y);
+	}
+
+	void vectorwp2Callback (const geometry_msgs::PoseArray::ConstPtr& vector_wp_msg) 
+	{
+    	ROS_INFO("vectorwpDownCallback");
+    	vector_wp.clear();
+    	int size = vector_wp_msg->poses.size();
+    	for (int i=0;i<size;i++)
+    	{
+    		vector_wp.push_back(Point((int)vector_wp_msg->poses[i].position.x,(int)vector_wp_msg->poses[i].position.y));
+		}
+	}
+
+	void vehicle2Callback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
+	{
+		double xtemp, ytemp;
+	    xtemp = vehicle_pose_msg->x;
+	    ytemp = vehicle_pose_msg->y;
+	    heading_angle  = vehicle_pose_msg->theta;
+	    //translate to downsampled coordinates
+	    vehicle_pose.x = (int)xtemp;
+	    vehicle_pose.y = (int)ytemp;
+
+	    ROS_INFO("vehicleCallback: ( %i , %i )",vehicle_pose.x,vehicle_pose.y);
 	}*/
+
 
 	void updateGoal() 
 	{
@@ -237,7 +275,7 @@ public:
 
 	}
 	
-	void rgbFeedCallback(const sensor_msgs::ImageConstPtr& msg)
+	void rgbFeed1Callback(const sensor_msgs::ImageConstPtr& msg)
 	{
 
 		cv_bridge::CvImage img_bridge;
@@ -298,7 +336,68 @@ public:
 
 	      counter++;
 	}
+	
+/*	void rgbFeed2Callback(const sensor_msgs::ImageConstPtr& msg)
+	{
 
+		cv_bridge::CvImage img_bridge;
+		sensor_msgs::Image img_msg;
+		cv_bridge::CvImagePtr cv_ptr;
+		
+		try
+		{
+			cv_ptr  = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::BGR8);
+		}
+		catch (cv_bridge::Exception& e)
+		{
+			ROS_INFO("cv_bridge exception: %s", e.what());
+			return;
+		}
+
+	    std_msgs::Header header; //empty header
+	    header.seq = counter; // user defined counter
+	    header.stamp = ros::Time::now(); // time
+	    frame = cv_ptr -> image;
+
+	    // update mouseclick events
+	    if (goal_points.size() > 0 ) 
+		{
+	    	updateGoal();
+		}
+
+
+   	    // draw vizualization on frame
+	    drawData(frame);
+	    // structure msg
+		
+		downsampleFrame(frame);
+
+        imshow(windowName,scaledFrame);
+
+		char k = (char) cv::waitKey(30); //wait for esc key
+
+		std_msgs::Int8 key_cmd_msg;
+		//if(k == 27) break;
+		if(k== ' ')  // start tracking : case 1 and key_cmd int value 1
+		{
+			key_cmd_msg.data = 1; 
+		} 
+		else if (k==27) // reinitialize background : case 2 and key_cmd int value 2
+		{
+			key_cmd_msg.data = 2; 
+		}
+		else {key_cmd_msg.data = 0;}
+		key_cmd_pub.publish(key_cmd_msg);
+
+        //publish viz
+	    img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, scaledFrame);
+	    img_bridge.toImageMsg(img_msg); // from cv _bridge to sensor_msgs::Image
+	    pub_viz.publish(img_msg); 
+
+        //publish MSSP msg 
+
+	      counter++;
+	}*/
 
 
 private:
@@ -312,17 +411,24 @@ private:
 	//astar Params
 	int astar_size = 150; // change to length of car
 
-	image_transport::Subscriber sub_rgb;
+	image_transport::Subscriber sub_rgb1;
+	image_transport::Subscriber sub_rgb2;
 	image_transport::Publisher pub_viz;
 	ros::Publisher pub_goal_out;
 	ros::Publisher key_cmd_pub;
 
-	ros::Subscriber sub_target_wp;
-	ros::Subscriber sub_vector_wp;
-	ros::Subscriber sub_target_angle;
-	ros::Subscriber sub_conv_fac;
-	ros::Subscriber sub_goal;
-	ros::Subscriber sub_vehicle;
+	ros::Subscriber sub_target_wp1;
+	ros::Subscriber sub_vector_wp1;
+	ros::Subscriber sub_target_angle1;
+	ros::Subscriber sub_conv_fac1;
+	ros::Subscriber sub_goal1;
+	ros::Subscriber sub_vehicle1;
+	ros::Subscriber sub_target_wp2;
+	ros::Subscriber sub_vector_wp2;
+	ros::Subscriber sub_target_angle2;
+	ros::Subscriber sub_conv_fac2;
+	ros::Subscriber sub_goal2;
+	ros::Subscriber sub_vehicle2;
 
 	Point target_wp;
 	vector<Point> vector_wp;
