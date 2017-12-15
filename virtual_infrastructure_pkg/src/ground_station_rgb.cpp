@@ -525,6 +525,11 @@ public:
 		} else { overlapState = 0};
 	}
 
+	double updateWaypointProj(	) {
+		// 
+		waypoint_proj_perc = 1; 
+		return waypoint_proj_perc;
+	}
 
 	void trackObjects(Mat threshold, Mat &frame,vector<Object> objects, string name) { //object tracking
 
@@ -589,6 +594,9 @@ public:
           		overlapState(x_obj, y_obj)
 
           		if (overlap_state > 0) { // if car is in overlapping region
+          			
+          			waypoint_proj_perc = updateWaypointProj(); // 
+
           			if (waypoint_proj_perc < 0.50) { // ready to switch 
 
 		  				local_bool = 1;
