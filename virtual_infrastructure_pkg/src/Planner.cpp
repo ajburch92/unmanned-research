@@ -257,7 +257,8 @@ int main(int argc, char **argv)
   ros::NodeHandle n;
 
   //n.param("ID_num",ID_num,-1);
-
+  ID_num = 1;
+  
   stringstream ss;
   ss << ID_num;
   string s;

@@ -1,11 +1,10 @@
 <launch>  
-  
-  <include file="$(find pointgrey_camera_driver)/launch/camera.launch"/>
+  <include file="/camera1.launch"/>
   
   <node name="image_proc" 
         pkg="image_proc" 
         type="image_proc"
-	ns="camera" >
+	ns="camera1">
   </node>
 
   <node pkg="virtual_infrastructure_pkg"

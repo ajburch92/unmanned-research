@@ -16,6 +16,7 @@ public:
 
 
 	    //nh_odom.param("ID_num",ID_num,-1);
+		ID_num = 1;
 
 		stringstream ss;
 		ss << ID_num;

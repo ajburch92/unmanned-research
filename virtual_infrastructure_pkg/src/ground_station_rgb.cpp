@@ -59,6 +59,10 @@ public:
 		//nh_rgb.param("checkerboard_height", checkerboard_height, -1);
 
 		//nh_rgb.param("ID_num",ID_num,-1);
+		ID_num = 1;
+		checkerboard_height = 0.3 ; // meters; or get square size, and multiply 
+		checkerboard_width = 0.55 ; // meters
+
 
 		stringstream ss;
 		ss << ID_num;
@@ -88,8 +92,7 @@ public:
 	//	sub_target_angle = nh_rgb.subscribe("/target_angle",2, &RGBImageProcessor::targetAngleCallback,this);*/
 
 
-		checkerboard_height = 0.3 ; // meters
-		checkerboard_width = 0.55 ; // meters
+
 
 		//create background subtractor object
 
@@ -139,6 +142,8 @@ public:
 			case 2 :
 
 				pMOG = new BackgroundSubtractorMOG();
+				patternfound = 0;
+				counter = 0;
 				ROS_INFO ("case 2 key_cmd : background reinitialized");
 				break;
 
@@ -168,10 +173,21 @@ public:
 		createTrackbar( "V_MAX", windowName7, &V_MAX, V_MAX);
 	}
 
-	void calibrateCheckerboard() {
+	void checkerboardAnalysis() {
+		
+		// send checkerboard coordinates, conversion factor
+
+		//checkerboard_PXwidth = ((transImgPts[1] - transImgPts[0]) + (transImgPts[1] - transImgPts[0]))/2; 
+		//int widthDif =  (transImgPts[1] - transImgPts[0]) - (transImgPts[1] - transImgPts[0]);
+
+		//checkerboard_PXheight = ((transImgPts[0] - transImgPts[2]) + (transImgPts[1] - transImgPts[3]))/2;
+		//int heightDif =  (transImgPts[1] - transImgPts[0]) - (transImgPts[1] - transImgPts[0]);
+
+		//ROS_INFO("heightDif = %i" , heightDif);
+		//ROS_INFO("widthDif = %i" , widthDif); 
 			
 		height_factor = checkerboard_height / double(checkerboard_PXheight) ;
-		width_factor =  checkerboard_width / double(checkerboard_PXwidth) ; // conver to Meters
+		width_factor =  checkerboard_width / double(checkerboard_PXwidth) ; // convert to Meters
 
 		std_msgs::Float64 conv_fac_msg;
 	    conv_fac_msg.data = (width_factor + height_factor) / 2;
@@ -188,16 +204,16 @@ public:
 		resize(frame,frameoutDown,size);
 	}
 
-	void downsampleGridHigh(Mat grid) {
+	void downsampleGrid(Mat grid) {
 		gridDownHigh = grid;
 		scale_factor = 8; // this may not work for all resolutions. this value needs to match the value in astar. retrive from param launch file.
-		Size size(resizedFeed.cols / scale_factor , resizedFeed.rows / scale_factor); // this should be 160x120 
-		resize(grid,gridDownHigh,size);
+		Size downsizeHigh(resizedFeed.cols / scale_factor , resizedFeed.rows / scale_factor); // this should be 160x120 
+		resize(grid,gridDownHigh,downsizeHigh);
 		//pyrDown( grid, gridDown, Size( grid.cols/scale_factor, grid.rows/scale_factor ) );
 		
 		gridDownLow = gridDownHigh;
-		Size size(resizedFeed.cols / scale_factor , resizedFeed.rows / scale_factor); // this should be 160x120 
-		resize(gridDownHigh,gridDownLow,size);
+		Size downsizeLow(resizedFeed.cols / scale_factor , resizedFeed.rows / scale_factor); // this should be 20x15 
+		resize(gridDownHigh,gridDownLow,downsizeLow);
 		//pyrDown( grid, gridDown, Size( grid.cols/scale_factor, grid.rows/scale_factor ) );
 
 		//get size
@@ -255,11 +271,11 @@ public:
 	  		putText(frame,intToString(theObjects.at(i).getXPos(MEMORY_SIZE-1))+ " , " + intToString(theObjects.at(i).getYPos(MEMORY_SIZE-1)),cv::Point(theObjects.at(i).getXPos(MEMORY_SIZE-1),theObjects.at(i).getYPos(MEMORY_SIZE-1)+20),1,1,Scalar(0,255,0));
 	  		putText(frame,theObjects.at(i).getType() + ": " + intToString(i+1),Point(theObjects.at(i).getXPos(MEMORY_SIZE-1),theObjects.at(i).getYPos(MEMORY_SIZE-1)-20),1,1.5,theObjects.at(i).getColor(),2);
 	    	//draw past positions if tracking
-	  		if (tracking_status == TRUE) {
-	  			for (int j = 1; j<(n-1); j++) { 
-	  				//line(frame,Point(theObjects.at(i).getXPos(MEMORY_SIZE-j),theObjects.at(i).getYPos(MEMORY_SIZE - j)),Point(theObjects.at(i).getXPos(MEMORY_SIZE-(j-1)),theObjects.at(i).getYPos(MEMORY_SIZE - (j-1))),theObjects.at(i).getColor(),1);
-	  			}
-	  		}
+	  		// if (tracking_status == TRUE) {
+	  		// 	for (int j = 1; j<(n-1); j++) { 
+	  		// 		//line(frame,Point(theObjects.at(i).getXPos(MEMORY_SIZE-j),theObjects.at(i).getYPos(MEMORY_SIZE - j)),Point(theObjects.at(i).getXPos(MEMORY_SIZE-(j-1)),theObjects.at(i).getYPos(MEMORY_SIZE - (j-1))),theObjects.at(i).getColor(),1);
+	  		// 	}
+	  		// }
 	    }
 	}
 
@@ -510,25 +526,19 @@ public:
 		
 		int xmax, xmin, ymax, ymin;
 
-		xmax = 10
-		xmin = 1
-		ymax = 10
-		ymin = 1
+		xmax = 10;
+		xmin = 1;
+		ymax = 10;
+		ymin = 1;
 
 		int dxmax = xmax - x ; 
 		int dxmin = xmin - x ; 
 
 		int dymax = ymax - y ; 
 		int dymin = ymin - y ; 
-		if (dx > 0 && dxmin < 0 && dymax > 0 && dymin < 0) {
-			overlapState = 1;
-		} else { overlapState = 0};
-	}
-
-	double updateWaypointProj(	) {
-		// 
-		waypoint_proj_perc = 1; 
-		return waypoint_proj_perc;
+		if (dxmax > 0 && dxmin < 0 && dymax > 0 && dymin < 0) {
+			overlap_state = 1;
+		} else { overlap_state = 0;}
 	}
 
 	void trackObjects(Mat threshold, Mat &frame,vector<Object> objects, string name) { //object tracking
@@ -545,6 +555,7 @@ public:
 	  	vector<float> dist;
 	  	double x,y,th;
 	  	double max_contour_index;
+	  	double confidence_temp = 0; 
 
 	  	if (hierarchy.size() > 0) { // if contours are found
 	  		
@@ -591,42 +602,40 @@ public:
           		objects.at(minPos).setYPos(y_obj);
 
           		// Check where vehicle is in frame / world
-          		overlapState(x_obj, y_obj)
+          		overlapState(x_obj, y_obj);
 
-          		if (overlap_state > 0) { // if car is in overlapping region
-          			
-          			waypoint_proj_perc = updateWaypointProj(); // 
+          		if (overlap_state > 0) { // is in overlapping region
 
-          			if (waypoint_proj_perc < 0.50) { // ready to switch 
-
+          			if (waypoint_proj_perc < 0.50) { // not heading towards other GS FOV
 		  				local_bool = 1;
-          				// send pose to planner
-          				// send high res occupance grid 
           				// calculate confidence
+			  			confidence = 0.9;		
 
           			} else {
-          				if (trajectory = notEmpty()) { // ready to handoff
-          					// handoff to other GS
-			
+          				if (trajectory_state >= 3) { // trajectory is ready to handoff			
 							local_bool = 0;
-          					// send low res
-          					// send checkerboard coordinates, physical orientation, conversion factor
           					// calc confidence
+				  			confidence = 0.2;
+
+          				} else { // remote trajectory not ready
+
+          					local_bool = 1;
+          					// calculate confidence
+				  			confidence = 0.8;
+
           				}
           			}
-          		} else { // overlap_state = 0, not in an overlapping area
-
+          		} else { // VEHICLE FOUND : overlap_state = 0, not in an overlapping area
 
 		  			local_bool = 1;
-          			// send pose
-          			// send high res
           			// calc confidence
-
+		  			confidence = 1;
+                               
           		}
 
-          	} else { // object too far away 
+          	} else { // VEHICLE NOT FOUND : object too far away 
           		
-          		if (proj_length < 3) { // VEHICLE FOUND : project vehicle position (or use past position), for up to three frames, then timeout.
+          		if (projection_state <= 3) { //project vehicle position (or use past position), for up to three frames, then timeout.
 	          		int i=0;
 	          		x_obj = objects.at(i).getXPos(MEMORY_SIZE-1); // retrieve past object position.
 			  		y_obj = objects.at(i).getYPos(MEMORY_SIZE-1);
@@ -635,30 +644,27 @@ public:
 			  		objects.at(i).setYPos(y_obj);
 
 		  			local_bool = 1;
-			  		// send pose
-			  		// send high res
 			  		// calc confidence
+		  			confidence = 0.1;
 
-		  		} else {// VEHICLE NOT FOUND
+		  		} else {
 
 		  			local_bool = 0;
-		  			// pub low res
-					// send checkerboard coordinates, physical orientation, conversion factor
           			// calc confidence
-
+		  			confidence = 0;
 				}
           	}
 
 	        dist.clear();
 	        minPos = 0;
 	 
-	        objectFound = true;
+	        drawObject(objects,frame, contours,hierarchy);
 
 		} else { // no contours found
 			num_objects = 0;
 			// use guess at object travel as opposed to vision, otherwise the position index will remain zero, or last memory cycle value. 
 			for (int j = 0; j<objects.size(); j++) { //for each already existing object.
-				if (proj_length < 3) { // VEHICLE FOUND : project vehicle position (or use past position), for up to three frames, then timeout.
+				if (projection_state <= 3) { // VEHICLE FOUND : project vehicle position (or use past position), for up to three frames, then timeout.
 					int i=0;
 					x_obj = objects.at(i).getXPos(MEMORY_SIZE-1); // retrieve past object position.
 					y_obj = objects.at(i).getYPos(MEMORY_SIZE-1);
@@ -667,16 +673,13 @@ public:
 					objects.at(i).setYPos(y_obj);
 
 					local_bool = 1;
-					// send pose
-					// send high res
 					// calc confidence
 
-				} else { // VEHICLE NOT FOUND
+				} else { // VEHICLE NOT FOUND : vehicle projection timed out
 
 					local_bool = 0;
-					// pub send low res
-					// send checkerboard coordinates, physical orientation, conversion factor
 					// calc confidence
+		  			confidence = 0;
 
 				}
 			}		  	  
@@ -685,39 +688,38 @@ public:
 		x = double(x_obj);
 		y = double(y_obj);
 
-		geometry_msgs::Pose2D vehicle_pose_msg;
+		if (local_bool > 0) { // vehicle_detected or projected, send pose.
 
-		if (name=="vehicle") { // vehicle
+			if (name=="vehicle") { // yellow vehicle state
 
-			vehicle_pose = Point(x, y);
+				vehicle_pose = Point(x, y);
+		
+				geometry_msgs::Pose2D vehicle_pose_msg;
 
-			vehicle_pose_msg.x = x;
-			vehicle_pose_msg.y = y;
-			
-			double recent_dist_travel = polyOrientation(frame);
-			if (recent_dist_travel < 10) 
-			{
-			} else { vehicle_orientation_angle = poly_vehicle_orientation_angle;
-				pcaOrientation(contours[max_contour_index],frame);
-				headingFilter();
+				vehicle_pose_msg.x = x;
+				vehicle_pose_msg.y = y;
+				
+				double recent_dist_travel = polyOrientation(frame);
+				if (recent_dist_travel < 10) 
+				{
+				} else { vehicle_orientation_angle = poly_vehicle_orientation_angle;
+					pcaOrientation(contours[max_contour_index],frame);
+					headingFilter();
+				}
+		
+				vehicle_pose_msg.theta = vehicle_orientation_angle;
+				prev_vehicle_orientation_angle = vehicle_orientation_angle;
+				
+				vehicle_pose_msg.theta = vehicle_pose_msg.theta*CV_PI/180;
+				th = vehicle_pose_msg.theta;
+
+				ROS_INFO("vehicle pose: ( %f , %f ) : th = %f ",x,y,th);
+				rgb_vehicle_pub.publish(vehicle_pose_msg); 
 			}
-	
-			vehicle_pose_msg.theta = vehicle_orientation_angle;
-			prev_vehicle_orientation_angle = vehicle_orientation_angle;
-			
-			vehicle_pose_msg.theta = vehicle_pose_msg.theta*CV_PI/180;
-			th = vehicle_pose_msg.theta;
-
-			ROS_INFO("vehicle pose: ( %f , %f ) : th = %f ",x,y,th);
-			rgb_vehicle_pub.publish(vehicle_pose_msg); 
+			else if (name=="goal") { // blue goal state
+				ROS_INFO("goal pose: ( %i , %i ) ",x_obj,y_obj);
+			} else {};
 		}
-		else if (name=="goal") { // goal
-			ROS_INFO("goal pose: ( %i , %i ) ",x_obj,y_obj);
-		} else {};
-
-		drawObject(objects,frame, contours,hierarchy);
-		contours_prev = contours;
-		hierarchy_prev = hierarchy;
 
 	}
 
@@ -731,11 +733,19 @@ public:
     	{
     		vector_wp.push_back(Point((int)vector_wp_msg->poses[i].position.x,(int)vector_wp_msg->poses[i].position.y));
 		}
+
+		// make vector of length 20 to hold bool values of overlap or not. 
+
+		// look at next 20 pts, determine percentage lying within overlapping area.
+		for (int j=0;j<20;j++) {
+			// check x
+			
+			
+		}
 	}
 	
 	void rgbFeedCallback(const sensor_msgs::ImageConstPtr& msg)
 	{
-
 		cv_bridge::CvImage img_bridge;
 		cv_bridge::CvImage occupancy_bridge;
 		sensor_msgs::Image img_msg;
@@ -756,25 +766,25 @@ public:
 	    header.seq = counter; // user defined counter
 	    header.stamp = ros::Time::now(); // time
 	    cameraFeed = rgb_cv_ptr -> image;
-
+	    
 	    resizeFrame(cameraFeed);
 
-	    dialog_box = Mat::zeros(100,400,CV_8UC3);
-
-	    //resizedFeed .copyTo(threshold);
 
 	    if (patternfound < 1) 
 	    {
-	    	Size board_sz(board_w, board_h);
 			Size patternsize(8,6);
 	    	patternfound = findChessboardCorners(resizedFeed , patternsize,corners);  
 	    	putText(resizedFeed ,"LOOKING FOR CHECKERBOARD",Point(0,50),1,2,Scalar(0,0,255),2); 
-	    	//imshow(windowName3,resizedFeed );
-	    	waitKey(30);
-
-
+	    	
+	    	// Output resized video stream
+			img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, resizedFeed);
+			img_bridge.toImageMsg(img_msg); // from cv _bridge to sensor_msgs::Image
+			rgb_pub_.publish(img_msg); 
+			if (patternfound < 1) {
+				ROS_INFO("pattern not found");
+			} else {ROS_INFO("pattern found");}
 	    } 
-	    else { // pattern status already changed 
+	    else { // pattern already found
 	    	if (counter < 1) 
 	    	{
 	    		cvtColor(resizedFeed , grayFeed, COLOR_BGR2GRAY);
@@ -789,73 +799,69 @@ public:
 	    		objPts[2].y=board_h-1;
 	    		objPts[3].y=board_h-1;
 
-	    		imgPts[0]=corners[0];
+/*	    		imgPts[0]=corners[0];
 	    		imgPts[1]=corners[board_w-1];
 	    		imgPts[2]=corners[(board_h-1)*board_w];
-	    		imgPts[3]=corners[(board_h-1)*board_w+board_w-1];
+	    		imgPts[3]=corners[(board_h-1)*board_w+board_w-1];*/
 
 	    		Homogeneous = getPerspectiveTransform(objPts, imgPts);
 
 	    		Homogeneous.at<double>(2,2) = birdseyeHeight;
-	    		warpPerspective(resizedFeed , birdseyeFeed, Homogeneous, resizedFeed .size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+	    		warpPerspective(resizedFeed , birdseyeFeed, Homogeneous, resizedFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 
-	    		cvtColor(birdseyeFeed, birdgrayFeed, COLOR_BGR2GRAY);
-	    		//cornerSubPix(birdgrayFeed, transCorners, Size(11,11),Size(-1,-1), TermCriteria( cv::TermCriteria::EPS | cv::TermCriteria::COUNT, 30, 0.1));
+	    		// find transformed image corner coordinates 
+				//Size patternsz(8,6);
+	    		//findChessboardCorners(birdseyeFeed , patternsz, transCorners);  
+	    		//cvtColor(birdseyeFeed, birdgrayFeed, COLOR_BGR2GRAY);
+	    		//cornerSubPix(birdgrayFeed, transCorners, Size(5,5),Size(-1,-1), TermCriteria( cv::TermCriteria::EPS | cv::TermCriteria::COUNT, 30, 0.1));
 
-	    		imgPts[0]=corners[0];
-	    		imgPts[1]=corners[board_w-1];
-	    		imgPts[2]=corners[(board_h-1)*board_w];
-	    		imgPts[3]=corners[(board_h-1)*board_w+board_w-1];
+	    		//transImgPts[0]=transCorners[0]; 
+	    		//transImgPts[1]=transCorners[board_w-1];
+	    		//transImgPts[2]=transCorners[(board_h-1)*board_w];
+	    		//transImgPts[3]=transCorners[(board_h-1)*board_w+board_w-1];
+				
+				// send checkerboard coordinates, conversion factor
+	    		//checkerboardAnalysis();
+				ROS_INFO("image calibrated");
 
-
-	    		
-	    		//checkerboard_PXwidth = ((imgPts[1] - imgPts[0]) + (imgPts[1] - imgPts[0]))/2; 
-	    		//widthDif =  (imgPts[1] - imgPts[0]) - (imgPts[1] - imgPts[0]);
-	    		//checkerboard_PXheight = ((imgPts[0] - imgPts[2]) + (imgPts[1] - imgPts[3]))/2;
-				//heightDif =  (imgPts[1] - imgPts[0]) - (imgPts[1] - imgPts[0]);
-				int widthDif = 1;
-				int heightDif = 1;
-		    	Homogeneous.at<double>(2,2) = birdseyeHeight;						
-		    	ROS_INFO("heightDif = %i" , heightDif);
-		    	warpPerspective(resizedFeed , birdseyeFeed, Homogeneous, resizedFeed .size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-		    	ROS_INFO("widthDif = %i" , widthDif); 
-			
-	    		calibrateCheckerboard();
-	
-	    	} else {	
+	    	} else { // transform each frame
 	
 	    		Homogeneous.at<double>(2,2) = birdseyeHeight;
-	    		warpPerspective(resizedFeed , birdseyeFeed, Homogeneous, resizedFeed .size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-	    		
-	    		calibrateCheckerboard();
+	    		warpPerspective(resizedFeed , birdseyeFeed, Homogeneous, resizedFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 
-			}
+	    		// draw corners
+		    	circle(birdseyeFeed, imgPts[0], 9, Scalar(255,0,0),2);
+		    	circle(birdseyeFeed, imgPts[1], 9, Scalar(0,255,0),2);
+		    	circle(birdseyeFeed, imgPts[2], 9, Scalar(0,0,255),2);
+		    	circle(birdseyeFeed, imgPts[3], 9, Scalar(0,255,255),2);
 
-/*	    	circle(birdseyeFeed, imgPts[0], 9, Scalar(255,0,0),3);
-	    	circle(birdseyeFeed, imgPts[1], 9, Scalar(0,255,0),3);
-	    	circle(birdseyeFeed, imgPts[2], 9, Scalar(0,0,255),3);
-	    	circle(birdseyeFeed, imgPts[3], 9, Scalar(0,255,255),3);
-*/
+		    	circle(birdseyeFeed, transImgPts[0], 9, Scalar(255,0,0),2);
+		    	circle(birdseyeFeed, transImgPts[1], 9, Scalar(0,255,0),2);
+		    	circle(birdseyeFeed, transImgPts[2], 9, Scalar(0,0,255),2);
+		    	circle(birdseyeFeed, transImgPts[3], 9, Scalar(0,255,255),2);
+				ROS_INFO("image transformed");
+
+			}	
 
 
-/*	      //adjust image and dim birdseye
-	      alpha = 1.2; // 1-3
-	      beta = 20; // 0-100
-		  birdseyeFeed_adjusted = Mat::zeros(birdseyeFeed.size(), birdseyeFeed.type());
+			/*//adjust image and dim birdseye
+			alpha = 1.2; // 1-3
+			beta = 20; // 0-100
+			birdseyeFeed_adjusted = Mat::zeros(birdseyeFeed.size(), birdseyeFeed.type());
 
-	      for (int y=0; y< birdseyeFeed.rows; y++) 
-	      {
-	      	  for (int x=0; x<birdseyeFeed.cols; x++)
-	      	  {
-	      		  for (int c = 0; c < 3 ; c++)
-	      		  {
-	      			  birdseyeFeed.at<Vec3b>(y,x)[c] = saturate_cast<uchar>(alpha*(birdseyeFeed.at<Vec3b>(y,x)[c]) - beta); // dim bg image
+			for (int y=0; y< birdseyeFeed.rows; y++) 
+			{
+				for (int x=0; x<birdseyeFeed.cols; x++)
+				{
+					for (int c = 0; c < 3 ; c++)
+					{
+						birdseyeFeed.at<Vec3b>(y,x)[c] = saturate_cast<uchar>(alpha*(birdseyeFeed.at<Vec3b>(y,x)[c]) - beta); // dim bg image
 
-	      			  birdseyeFeed_adjusted.at<Vec3b>(y,x)[c] = saturate_cast<uchar>(alpha*(birdseyeFeed.at<Vec3b>(y,x)[c]) - 60); // dim bg image
+						birdseyeFeed_adjusted.at<Vec3b>(y,x)[c] = saturate_cast<uchar>(alpha*(birdseyeFeed.at<Vec3b>(y,x)[c]) - 60); // dim bg image
 
-	      		  }
-	      	  }
-	      }*/
+					}
+				}
+			}*/
 
 	      // Background subtraction
 	    	pMOG->operator()(birdseyeFeed,fgMaskMOG);
@@ -869,7 +875,6 @@ public:
 	    	morphologicalOps(fgMaskMOG, erodeSize, dilateSize);
 
 	      // Apply object feed mask
-	    	objectFeed = Scalar::all(0);
 	    	birdseyeFeed.copyTo(objectFeed,fgMaskMOG);
 
 	      // convert masked object feed to HSV color space for classification
@@ -946,65 +951,67 @@ public:
 				arm_bool = 1;
 
 			}
-	      // downsample objectFeed to get occupancy grid
-		  downsampleGrid(occupancyGrid);
+			// downsample objectFeed to get occupancy grid
+			downsampleGrid(occupancyGrid);
 
-	      // Create processing palate
-	      //putText(dialog_box, "text test", Point(0,50),1,2,Scalar(255),2);
-	      //imshow(trackbar_window_name,dialog_box); 
+			// Create processing palate
+			// dialog_box = Mat::zeros(100,400,CV_8UC3);
+			//putText(dialog_box, "text test", Point(0,50),1,2,Scalar(255),2);
+			//imshow(trackbar_window_name,dialog_box); 
 
-/*	      createTrackbar( "Min Threshold:", trackbar_window_name, &lowThreshold, max_lowThreshold);
-	      createTrackbar( "Erode Size:", trackbar_window_name, &erodeSize, max_erode+1);
-	      createTrackbar( "Dilate Size:", trackbar_window_name, &dilateSize, max_dilate+1);
-	      //createTrackbar( "Blur Size:", trackbar_window_name, &blurSize, max_blur+2);
-	      createTrackbar( "Blur Sigma Size:", trackbar_window_name, &sigmaSize, max_sigma+1);
-	      createTrackbar( "Distortion Angle", trackbar_window_name, &distortionAngle, max_distortion+1);
-	      createTrackbar( "Birds Eye Height", trackbar_window_name, &birdseyeHeight, max_birdseye+1);
+			/*	      createTrackbar( "Min Threshold:", trackbar_window_name, &lowThreshold, max_lowThreshold);
+			createTrackbar( "Erode Size:", trackbar_window_name, &erodeSize, max_erode+1);
+			createTrackbar( "Dilate Size:", trackbar_window_name, &dilateSize, max_dilate+1);
+			//createTrackbar( "Blur Size:", trackbar_window_name, &blurSize, max_blur+2);
+			createTrackbar( "Blur Sigma Size:", trackbar_window_name, &sigmaSize, max_sigma+1);
+			createTrackbar( "Distortion Angle", trackbar_window_name, &distortionAngle, max_distortion+1);
+			createTrackbar( "Birds Eye Height", trackbar_window_name, &birdseyeHeight, max_birdseye+1);
 
-	      createTrackbar( "contrast", trackbar_window_name, &alpha, max_alpha+1);
-	      createTrackbar( "brightness", trackbar_window_name, &beta, max_beta+1);*/
-	      // drawCheckerboardCorners
-	      //drawChessboardCorners(birdseyeFeed, patternsize, Mat(corners), patternfound);      
+			createTrackbar( "contrast", trackbar_window_name, &alpha, max_alpha+1);
+			createTrackbar( "brightness", trackbar_window_name, &beta, max_beta+1);*/
+			// drawCheckerboardCorners
+			//drawChessboardCorners(birdseyeFeed, patternsize, Mat(corners), patternfound);      
 
-	      // add dimmed birdseyeFeed_adjusted to objectFeed display.
-	      //objectFeed += birdseyeFeed_adjusted;
-	      objectFeed += birdseyeFeed;
-	      downsampleFrameOut(objectFeed);
-	      // Show processed image
-	      //imshow(windowName2, HSVthreshold);
-          //imshow(windowName3,objectFeed);
-	      //imshow(windowName1,objectFeed_thresh);
-	      //imshow(windowName4,birdseyeFeed);
-	      //imshow(windowName5,occupancyGrid);
-	      //imshow(windowName6,fgMaskMOG);
-	      //imshow(windowName6,birdseyeFeed);
-	      //imshow(windowName1,objectFeed);
-		  //cv::waitKey(30); //wait for esc key
+			// add dimmed birdseyeFeed_adjusted to objectFeed display.
+			//objectFeed += birdseyeFeed_adjusted;
+			objectFeed += birdseyeFeed;
+			downsampleFrameOut(objectFeed);
+			// Show processed image
+			//imshow(windowName2, HSVthreshold);
+			//imshow(windowName3,objectFeed);
+			//imshow(windowName1,objectFeed_thresh);
+			//imshow(windowName4,birdseyeFeed);
+			//imshow(windowName5,occupancyGrid);
+			//imshow(windowName6,fgMaskMOG);
+			//imshow(windowName6,birdseyeFeed);
+			//imshow(windowName1,objectFeed);
+			//cv::waitKey(30); //wait for esc key
 
-		  std_msgs::Float64 arm_bool_msg;
-		  arm_bool_msg.data = arm_bool;
-		  rgb_arm_bool_pub.publish(arm_bool_msg);
+			std_msgs::Float64 arm_bool_msg;
+			arm_bool_msg.data = arm_bool;
+			rgb_arm_bool_pub.publish(arm_bool_msg);
 
-	      // Output modified video stream
-	      img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, objectFeed);
-	      img_bridge.toImageMsg(img_msg); // from cv _bridge to sensor_msgs::Image
-	      rgb_pub_.publish(img_msg); 
+			// Output modified video stream
+			img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, objectFeed);
+			img_bridge.toImageMsg(img_msg); // from cv _bridge to sensor_msgs::Image
+			rgb_pub_.publish(img_msg); 
 
-	      if (local_bool > 0) { // send high res occupancy grid
-		      occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8,gridDownHigh);
-	      } else { // send low res occupancy grid
-		      occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, gridDownLow);
-	      }
-	
-	      occupancy_bridge.toImageMsg(occupancyGrid_msg);
-	      occupancyGrid_pub.publish(occupancyGrid_msg);
+			if (local_bool > 0) { // send high res occupancy grid
+			  occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8,gridDownHigh);
+			} else { // local bool = 0 : send low res occupancy grid
+			  occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, gridDownLow);
+			}
 
-	      std_msgs::Float64 confidence_msg;
-	      confidence_msg.data = confidence;
-		  rgb_confidence_pub.publish(confidence_msg);
+			occupancy_bridge.toImageMsg(occupancyGrid_msg);
+			occupancyGrid_pub.publish(occupancyGrid_msg);
 
-	      counter++;
-	  }
+			std_msgs::Float64 confidence_msg;
+			confidence_msg.data = confidence;
+			rgb_confidence_pub.publish(confidence_msg);
+
+			counter++;
+			ROS_INFO("counter=%i",counter);
+	    }
 	}
 private:
 
@@ -1129,10 +1136,8 @@ private:
 	//checkerboard ... or chess, board parameters
 	int board_w = 8;
 	int board_h = 6;
-	int board_n = board_w*board_h;
-	Size board_sz;
 	Size patternsize;
-	Point2f objPts[4], imgPts[4], transPts[4];
+	Point2f objPts[4], imgPts[4], transImgPts[4];
 	vector<Point2f> corners;
 	vector<Point2f> transCorners;
 	bool patternfound = 0;
@@ -1146,8 +1151,6 @@ private:
 	// vector init
 	vector< vector<Point> > contours; 
 	vector<Vec4i> hierarchy; 
-	vector< vector<Point> > contours_prev; 
-	vector<Vec4i> hierarchy_prev;                   
 	//vector <Object> objects; 
 
 	vector <Object> objects_blue; 
@@ -1212,8 +1215,11 @@ private:
 	int ID_num ;
 	int overlap_state = 0;
 
-	local_bool = 0;
+	int local_bool = 0;
+	double waypoint_proj_perc = 0;
 
+	int trajectory_state = 0;
+	int projection_state = 0;
 };
 
 

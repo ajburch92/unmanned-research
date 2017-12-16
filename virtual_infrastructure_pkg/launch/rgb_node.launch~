@@ -5,7 +5,7 @@
   <node name="image_proc" 
         pkg="image_proc" 
         type="image_proc"
-	ns="camera" >
+	ns="camera" 
   </node>
 
   <node pkg="virtual_infrastructure_pkg"
