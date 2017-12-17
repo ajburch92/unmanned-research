@@ -260,7 +260,7 @@ public:
 		{
 			for (int j = 0; j < goal_points.size(); j++)
 			{
-				circle(frame,goal_points[j], 2, goal_color,50);
+				circle(frame,goal_points[j], 2, goal_color,30);
 			}
 
 		}

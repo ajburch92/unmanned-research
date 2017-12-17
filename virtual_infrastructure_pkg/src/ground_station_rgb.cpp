@@ -72,27 +72,25 @@ public:
 		string image_rect_color = "/camera" + s + "/image_rect_color" ;
 		string ground_station_rgb = "/ground_station_rgb" + s ; 
 		string conv_fac = "/conv_fac" + s ;
-		string occupancyGrid = "/occupancyGrid" + s ;
+		string occupancyGridLow = "/occupancyGridLow" + s ;
+		string occupancyGridHigh = "/occupancyGridHigh" + s ;
 		string vehicle_pose = "/vehicle_pose" + s ;
 		string arm_bool = "/arm_bool" + s ;
 		string confidence = "/confidence" + s ;
-		string wp_pose = "/wp_pose" + s ;
+		string corners_pose = "/corners_pose" + s ;
 
 		rgb_sub_ = it_rgb.subscribe(image_rect_color,1, &RGBImageProcessor::rgbFeedCallback, this); // use image_rect
 		rgb_pub_ = it_rgb.advertise(ground_station_rgb,1);
 		conv_fac_pub = nh_rgb.advertise<std_msgs::Float64>(conv_fac,2);
-		occupancyGrid_pub = it_rgb.advertise(occupancyGrid , 1);
+		occupancyGridLow_pub = it_rgb.advertise(occupancyGridLow , 1);
+		occupancyGridHigh_pub = it_rgb.advertise(occupancyGridHigh , 1);
 		rgb_vehicle_pub = nh_rgb.advertise<geometry_msgs::Pose2D>(vehicle_pose,2);
+		corners_pub = nh_rgb.advertise<geometry_msgs::PoseArray>(corners_pose,2);
 		//rgb_goal_pub = nh_rgb.advertise<geometry_msgs::Pose2D>("goal_pose",2);
 		rgb_arm_bool_pub = nh_rgb.advertise<std_msgs::Float64>(arm_bool,2);
 		rgb_confidence_pub = nh_rgb.advertise<std_msgs::Float64>(confidence,2);
 		key_cmd_sub = nh_rgb.subscribe("/key_cmd" , 2 , &RGBImageProcessor::keyCallback, this);
-	//	sub_target_wp = nh_rgb.subscribe("/target_wp",2, &RGBImageProcessor::targetwpCallback,this);
-		sub_vector_wp = nh_rgb.subscribe(wp_pose,2, &RGBImageProcessor::vectorwpCallback,this);
 	//	sub_target_angle = nh_rgb.subscribe("/target_angle",2, &RGBImageProcessor::targetAngleCallback,this);*/
-
-
-
 
 		//create background subtractor object
 
@@ -212,7 +210,7 @@ public:
 		//pyrDown( grid, gridDown, Size( grid.cols/scale_factor, grid.rows/scale_factor ) );
 		
 		gridDownLow = gridDownHigh;
-		Size downsizeLow(resizedFeed.cols / scale_factor , resizedFeed.rows / scale_factor); // this should be 20x15 
+		Size downsizeLow(gridDownHigh.cols / scale_factor , gridDownHigh.rows / scale_factor); // this should be 20x15 
 		resize(gridDownHigh,gridDownLow,downsizeLow);
 		//pyrDown( grid, gridDown, Size( grid.cols/scale_factor, grid.rows/scale_factor ) );
 
@@ -247,21 +245,7 @@ public:
 			drawContours(frame,contours,-1,white,2,8,hierarchy);
 		}
 
-/*		//draw path and target WP - NOW IN DATA PROCESSOR VISUALIZATION
-		int size = vector_wp.size();
-		ROS_INFO("wp vector size = %i",size);
-		Scalar path_color = Scalar(0,255,0);
-		Scalar wp_color = Scalar(255,50,0);
 
-    	for (int i=0;i<size;i++)
-    	{
-    		circle(frame,vector_wp[i], 2, path_color,2);
-    		ROS_INFO("wp:%i,%i",vector_wp[i].x,vector_wp[i].y);
-
-		} 
-		circle(frame,Point((int)x_target_wp, (int)y_target_wp), 3, wp_color,3);
-
-*/
 		for(int i =0; i<theObjects.size(); i++)
 	  	{ //for each object
 	    //draw current position
@@ -723,34 +707,24 @@ public:
 
 	}
 
-
-	void vectorwpCallback (const geometry_msgs::PoseArray::ConstPtr& vector_wp_msg) 
-	{
-    	ROS_INFO("vectorwpCallback");
-    	vector_wp.clear();
-    	int size = vector_wp_msg->poses.size();
-    	for (int i=0;i<size;i++)
-    	{
-    		vector_wp.push_back(Point((int)vector_wp_msg->poses[i].position.x,(int)vector_wp_msg->poses[i].position.y));
-		}
-
-		// make vector of length 20 to hold bool values of overlap or not. 
-
-		// look at next 20 pts, determine percentage lying within overlapping area.
-		for (int j=0;j<20;j++) {
-			// check x
-			
-			
-		}
-	}
 	
 	void rgbFeedCallback(const sensor_msgs::ImageConstPtr& msg)
 	{
 		cv_bridge::CvImage img_bridge;
-		cv_bridge::CvImage occupancy_bridge;
+		cv_bridge::CvImage occupancyHigh_bridge;
+		cv_bridge::CvImage occupancyLow_bridge;
+
 		sensor_msgs::Image img_msg;
-		sensor_msgs::Image occupancyGrid_msg;
+		sensor_msgs::Image occupancyGridLow_msg;
+		sensor_msgs::Image occupancyGridHigh_msg;
+
 		cv_bridge::CvImagePtr rgb_cv_ptr;
+		int b;
+		Size patternsz(8,6);
+		std::vector<Point2f> imgPts_vec;
+		std::vector<Point2f> objPts_vec(4);
+		std::vector<Point2f> transImgPts_vec(4);
+
 		
 		try
 		{
@@ -790,60 +764,113 @@ public:
 	    		cvtColor(resizedFeed , grayFeed, COLOR_BGR2GRAY);
 	    		cornerSubPix(grayFeed, corners, Size(11,11),Size(-1,-1), TermCriteria( cv::TermCriteria::EPS | cv::TermCriteria::COUNT, 30, 0.1));
 
-	    		objPts[0].x=0;
+	    		imgPts[0]=corners[0];
+	    		imgPts[1]=corners[board_w-1];
+	    		imgPts[2]=corners[(board_h-1)*board_w];
+	    		imgPts[3]=corners[(board_h-1)*board_w+board_w-1];
+
+	    		geometry_msgs::PoseArray poseArray;
+    			poseArray.poses.clear();
+    			poseArray.header.stamp=ros::Time::now();
+    			geometry_msgs::Pose corners_pose_msg;
+
+	   			for (int n=0;n<=3; n++) {
+		            corners_pose_msg.position.x = double(imgPts[n].x);
+		            corners_pose_msg.position.y = double(imgPts[n].y);
+		            poseArray.poses.push_back(corners_pose_msg);     				
+    			}
+
+				corners_pub.publish(poseArray); 
+				ROS_INFO("corners published");
+
+
+/*	    		objPts[0].x=0;
 	    		objPts[1].x=board_w-1;
 	    		objPts[2].x=0;
 	    		objPts[3].x=board_w-1;
 	    		objPts[0].y=0;
 	    		objPts[1].y=0;
 	    		objPts[2].y=board_h-1;
-	    		objPts[3].y=board_h-1;
+	    		objPts[3].y=board_h-1;*/
+	    		// scale these accordingly
+/*
+	    		//get gs2 transformation matrix
+	    		if(ID_num == 1) {
+		    		Mat H_camcam = getPerspectiveTransform(imgRemote,imgLocal)
+		    		Mat H_cambird = getPerspectiveTransform(imgPts, objPts);
+	    			H_camcam.at<double>(2,2) = birdseyeHeight;
+	    			H_cambird.at<double>(2,2) = birdseyeHeight;
 
-/*	    		imgPts[0]=corners[0];
-	    		imgPts[1]=corners[board_w-1];
-	    		imgPts[2]=corners[(board_h-1)*board_w];
-	    		imgPts[3]=corners[(board_h-1)*board_w+board_w-1];*/
+		    		//publish transform matrix
+		    		//apply transform
+		    		warpPerspective(resizedFeed , birdseyeFeed, H_cambird, resizedFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 
-	    		Homogeneous = getPerspectiveTransform(objPts, imgPts);
+	    		} else { // ID = 2 : collect H matricies
+					while (H.isEmpty() < 1) {
+						sleep(1);
+					}
+					//apply transforms 
+		    		warpPerspective(resizedFeed , birdseyeFeed, H_camcam, resizedFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+		    		warpPerspective(resizedFeed , birdseyeFeed, H_cambird, resizedFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 
-	    		Homogeneous.at<double>(2,2) = birdseyeHeight;
-	    		warpPerspective(resizedFeed , birdseyeFeed, Homogeneous, resizedFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+	    		}
+	    		*/
 
-	    		// find transformed image corner coordinates 
-				//Size patternsz(8,6);
-	    		//findChessboardCorners(birdseyeFeed , patternsz, transCorners);  
-	    		//cvtColor(birdseyeFeed, birdgrayFeed, COLOR_BGR2GRAY);
-	    		//cornerSubPix(birdgrayFeed, transCorners, Size(5,5),Size(-1,-1), TermCriteria( cv::TermCriteria::EPS | cv::TermCriteria::COUNT, 30, 0.1));
 
-	    		//transImgPts[0]=transCorners[0]; 
-	    		//transImgPts[1]=transCorners[board_w-1];
-	    		//transImgPts[2]=transCorners[(board_h-1)*board_w];
-	    		//transImgPts[3]=transCorners[(board_h-1)*board_w+board_w-1];
+/*	    		H = getPerspectiveTransform(objPts, imgPts);
+	    		cout << H.at<double>(0,0) <<  endl;
+	    		H.at<double>(2,2) = 21;
+	    		Mat H2 = getPerspectiveTransform(imgPts, objPts);
+
+
+	    		H2.at<double>(2,2) = birdseyeHeight;
+
+	    		warpPerspective(resizedFeed , birdseyeFeed, H, resizedFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 				
+				imgPts_vec.push_back(Point2f(imgPts[0].x,imgPts[0].y));
+				imgPts_vec.push_back(Point2f(imgPts[1].x,imgPts[1].y));
+				imgPts_vec.push_back(Point2f(imgPts[2].x,imgPts[2].y));
+				imgPts_vec.push_back(Point2f(imgPts[3].x,imgPts[3].y));
+	    		imgPts_vec[0].x = imgPts[0].x;
+	    		imgPts_vec[0].y = imgPts[0].y;
+	    		imgPts_vec[2] = imgPts[2];
+	    		imgPts_vec[3] = imgPts[3];
+
+
+	    		perspectiveTransform( imgPts_vec,transImgPts_vec, H2);
 				// send checkerboard coordinates, conversion factor
 	    		//checkerboardAnalysis();
-				ROS_INFO("image calibrated");
 
+	    		float x = H2.at<double>(0,0) * imgPts[0].x + H2.at<double>(0,1) * imgPts[0].y + H2.at<double>(0,2);
+	    		float y = H2.at<double>(1,0) * imgPts[0].x + H2.at<double>(1,1) * imgPts[0].y + H2.at<double>(1,2);
+	    		float w = H2.at<double>(2,0) * imgPts[0].x + H2.at<double>(2,1) * imgPts[0].y + H2.at<double>(2,2);
+
+	    		//transImgPts[0]=Point(x/w,y/w);
+				transImgPts[0]=transImgPts_vec[0];
+				transImgPts[1]=transImgPts_vec[1];
+	    		transImgPts[2]=transImgPts_vec[2];
+	    		transImgPts[3]=transImgPts_vec[3];
+				ROS_INFO("image calibrated");
+*/
 	    	} else { // transform each frame
 	
-	    		Homogeneous.at<double>(2,2) = birdseyeHeight;
-	    		warpPerspective(resizedFeed , birdseyeFeed, Homogeneous, resizedFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+/*	    		warpPerspective(resizedFeed , birdseyeFeed, H, resizedFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 
-	    		// draw corners
-		    	circle(birdseyeFeed, imgPts[0], 9, Scalar(255,0,0),2);
-		    	circle(birdseyeFeed, imgPts[1], 9, Scalar(0,255,0),2);
-		    	circle(birdseyeFeed, imgPts[2], 9, Scalar(0,0,255),2);
-		    	circle(birdseyeFeed, imgPts[3], 9, Scalar(0,255,255),2);
+		    	circle(birdseyeFeed, transImgPts[0], 10, Scalar(255,0,0),2);
+		    	circle(birdseyeFeed, transImgPts[1], 10, Scalar(0,255,0),2);
+		    	circle(birdseyeFeed, transImgPts[2], 10, Scalar(0,0,255),2);
+		    	circle(birdseyeFeed, transImgPts[3], 10, Scalar(0,255,255),2);		
 
-		    	circle(birdseyeFeed, transImgPts[0], 9, Scalar(255,0,0),2);
-		    	circle(birdseyeFeed, transImgPts[1], 9, Scalar(0,255,0),2);
-		    	circle(birdseyeFeed, transImgPts[2], 9, Scalar(0,0,255),2);
-		    	circle(birdseyeFeed, transImgPts[3], 9, Scalar(0,255,255),2);
-				ROS_INFO("image transformed");
+		    	circle(birdseyeFeed, imgPts[0], 5, Scalar(255,0,0),2);
+		    	circle(birdseyeFeed, imgPts[1], 5, Scalar(0,255,0),2);
+		    	circle(birdseyeFeed, imgPts[2], 5, Scalar(0,0,255),2);
+		    	circle(birdseyeFeed, imgPts[3], 5, Scalar(0,255,255),2);*/
+
+		    	ROS_INFO("image transformed");
 
 			}	
 
-
+			birdseyeFeed = resizedFeed ;
 			/*//adjust image and dim birdseye
 			alpha = 1.2; // 1-3
 			beta = 20; // 0-100
@@ -875,6 +902,7 @@ public:
 	    	morphologicalOps(fgMaskMOG, erodeSize, dilateSize);
 
 	      // Apply object feed mask
+	    	objectFeed = Scalar::all(0);
 	    	birdseyeFeed.copyTo(objectFeed,fgMaskMOG);
 
 	      // convert masked object feed to HSV color space for classification
@@ -977,14 +1005,12 @@ public:
 			objectFeed += birdseyeFeed;
 			downsampleFrameOut(objectFeed);
 			// Show processed image
-			//imshow(windowName2, HSVthreshold);
-			//imshow(windowName3,objectFeed);
-			//imshow(windowName1,objectFeed_thresh);
-			//imshow(windowName4,birdseyeFeed);
-			//imshow(windowName5,occupancyGrid);
-			//imshow(windowName6,fgMaskMOG);
-			//imshow(windowName6,birdseyeFeed);
-			//imshow(windowName1,objectFeed);
+/*			imshow(windowName1,objectFeed);
+			imshow(windowName2,resizedFeed);
+			imshow(windowName3,HSV);
+			imshow(windowName4,HSVoccupancyGrid);
+			imshow(windowName5,occupancyGrid);
+			imshow(windowName6,birdseyeFeed);*/
 			//cv::waitKey(30); //wait for esc key
 
 			std_msgs::Float64 arm_bool_msg;
@@ -996,14 +1022,15 @@ public:
 			img_bridge.toImageMsg(img_msg); // from cv _bridge to sensor_msgs::Image
 			rgb_pub_.publish(img_msg); 
 
-			if (local_bool > 0) { // send high res occupancy grid
-			  occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8,gridDownHigh);
-			} else { // local bool = 0 : send low res occupancy grid
-			  occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, gridDownLow);
-			}
+			// send high res occupancy grid
+			occupancyHigh_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8,gridDownHigh);
+			//send low res occupancy grid
+			occupancyLow_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, gridDownLow);
 
-			occupancy_bridge.toImageMsg(occupancyGrid_msg);
-			occupancyGrid_pub.publish(occupancyGrid_msg);
+			occupancyHigh_bridge.toImageMsg(occupancyGridHigh_msg);
+			occupancyGridHigh_pub.publish(occupancyGridHigh_msg);
+			occupancyLow_bridge.toImageMsg(occupancyGridLow_msg);
+			occupancyGridLow_pub.publish(occupancyGridLow_msg);
 
 			std_msgs::Float64 confidence_msg;
 			confidence_msg.data = confidence;
@@ -1025,7 +1052,7 @@ private:
 	Mat resizedFeed;
 	Mat objectFeed;
 	Mat grayFeed;
-	Mat Homogeneous;
+	Mat H;
 	Mat birdseyeFeed;
 	Mat HSV;
 	Mat HSVobjects;
@@ -1065,12 +1092,12 @@ private:
 	const int MIN_OBJECT_AREA = 10*10;
 
 	//names of feed windows
-	const string windowName1 = "Raw Feed";
-	const string windowName2 = "HSVobjects";
-	const string windowName3 = "Output Feed";
-	const string windowName4 = "Undistorted Feed";
-	const string windowName5 = "HSV Threshold Image";
-	const string windowName6 = "Threshold Image";
+	const string windowName1 = "ground_station_rgb_node";
+	const string windowName2 = "resizedFeed";
+	const string windowName3 = "HSV";
+	const string windowName4 = "HSV occupancy grid";
+	const string windowName5 = "occupancyGrid";
+	const string windowName6 = "objectFeed";
 	const string windowName7 = "HSV Trackbar";
 
 	const string trackbar_window_name = "Parameter Palate" ;
@@ -1137,7 +1164,12 @@ private:
 	int board_w = 8;
 	int board_h = 6;
 	Size patternsize;
-	Point2f objPts[4], imgPts[4], transImgPts[4];
+	Point2f objPts[4];
+	Point2f imgPts[4];
+	Point2f imgPtsLocal[4];	
+	Point2f imgPtsRemote[4];	
+	Point2f transImgPts[4];
+
 	vector<Point2f> corners;
 	vector<Point2f> transCorners;
 	bool patternfound = 0;
@@ -1163,15 +1195,15 @@ private:
 	ros::Publisher conv_fac_pub;
 	ros::Publisher rgb_arm_bool_pub;
 	ros::Publisher rgb_confidence_pub;
+	ros::Publisher corners_pub;
 
 	Mat background;
 	image_transport::Subscriber rgb_sub_;
 	image_transport::Publisher rgb_pub_;
-	image_transport::Publisher occupancyGrid_pub;
+	image_transport::Publisher occupancyGridLow_pub;
+	image_transport::Publisher occupancyGridHigh_pub;
 
 	ros::Subscriber key_cmd_sub;
-//	ros::Subscriber sub_target_wp;
-	ros::Subscriber sub_vector_wp;
 
 
 	double checkerboard_height = 1;
@@ -1187,9 +1219,6 @@ private:
 	int gridDownHigh_height;
 	int gridDownHigh_width;
 
-	double x_target_wp = 0;
-	double y_target_wp = 0;
-	vector<Point> vector_wp;
 
 	double target_angle = 0;
 

@@ -71,6 +71,10 @@ double confidenceRemote;
 int ID_num;
 int other_num;
 
+vector<Point> corners2_vec;
+vector<Point> corners1_vec;
+
+
 class node
 {
     // current position
@@ -265,6 +269,8 @@ void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg)
     xA  = (int)xtemp;
     yA = (int)ytemp;
 
+    // transform coordinates
+
     ROS_INFO("vehicleCallback (xA, yA): ( %i , %i )",xA,yA);
 }
 
@@ -347,8 +353,7 @@ void goal_outCallback (const geometry_msgs::PoseArray::ConstPtr& goal_out_pose_m
 
 void occupancyGridLocalCallback (const sensor_msgs::ImageConstPtr& msg) 
 {
-    // fillout the grid matrix with a '+' pattern
-	cv_bridge::CvImagePtr occupancyGrid_ptr;
+	cv_bridge::CvImagePtr occupancyGridLocal_ptr;
 
 	gridDownLocal.setTo(Scalar(0));
 	occupancyGridLocal.setTo(Scalar(0));
@@ -356,7 +361,7 @@ void occupancyGridLocalCallback (const sensor_msgs::ImageConstPtr& msg)
 	
 	try
 	{
-		occupancyGrid_ptr  = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::MONO8);
+		occupancyGridLocal_ptr  = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::MONO8);
 		ROS_INFO("cv_bridge msg read");
 	}
 	catch (cv_bridge::Exception& e)
@@ -365,7 +370,7 @@ void occupancyGridLocalCallback (const sensor_msgs::ImageConstPtr& msg)
 		return;
 	}
 
-    gridDownLocal = occupancyGrid_ptr -> image;
+    gridDownLocal = occupancyGridLocal_ptr -> image;
 
     // convert to grid size - ALREADY DOWN SAMPLED, JUST NEED TO INCREASE RESOLUTION UPON PUBLISHING
     //memcpy(gridDown.data, grid,n*m*sizeof(int)
@@ -388,8 +393,8 @@ void occupancyGridLocalCallback (const sensor_msgs::ImageConstPtr& msg)
 	std_msgs::Header header; //empty header
 	header.seq = counter; // user defined counter
 	header.stamp = ros::Time::now(); // time
-    cv_bridge::CvImage occupancy_bridge;
-	sensor_msgs::Image occupancyGrid_msg;
+    cv_bridge::CvImage occupancyLocal_bridge;
+	sensor_msgs::Image occupancyGridLocal_msg;
 
 	// create waypoint message
 	geometry_msgs::PoseArray poseArray;
@@ -475,9 +480,9 @@ void occupancyGridLocalCallback (const sensor_msgs::ImageConstPtr& msg)
     ROS_INFO("poseArray published");
 	wp_pub.publish(poseArray); 
     
-    occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, occupancyGridLocal);
-    occupancy_bridge.toImageMsg(occupancyGrid_msg);
-    path_pub.publish(occupancyGrid_msg);
+    occupancyLocal_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, occupancyGridLocal);
+    occupancyLocal_bridge.toImageMsg(occupancyGridLocal_msg);
+    path_pub.publish(occupancyGridLocal_msg);
 
     //empty map
     for(int y=0;y<m;y++)
@@ -488,12 +493,14 @@ void occupancyGridLocalCallback (const sensor_msgs::ImageConstPtr& msg)
 	
     counter++;
 
+
+
 }
 
 void occupancyGridRemoteCallback (const sensor_msgs::ImageConstPtr& msg) 
 {
     // fillout the grid matrix with a '+' pattern
-	cv_bridge::CvImagePtr occupancyGrid_ptr;
+	cv_bridge::CvImagePtr occupancyGridRemote_ptr;
 
 	gridDownRemote.setTo(Scalar(0));
 	occupancyGridRemote.setTo(Scalar(0));
@@ -501,7 +508,7 @@ void occupancyGridRemoteCallback (const sensor_msgs::ImageConstPtr& msg)
 	
 	try
 	{
-		occupancyGrid_ptr  = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::MONO8);
+		occupancyGridRemote_ptr  = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::MONO8);
 		ROS_INFO("cv_bridge msg read");
 	}
 	catch (cv_bridge::Exception& e)
@@ -510,10 +517,42 @@ void occupancyGridRemoteCallback (const sensor_msgs::ImageConstPtr& msg)
 		return;
 	}
 
-    gridDownRemote = occupancyGrid_ptr -> image;
+    gridDownRemote = occupancyGridRemote_ptr -> image;
+
+        for (int x = 1; x <= n/scale_factor; x++)
+    {
+        for (int y = 1; y<=m/scale_factor; y++)
+        {
+            int pix = (int)gridDownRemote.at<uchar>(y,x);
+            if (pix > 0) // obstacle
+            {
+                grid[x][y] = 1;
+            } else {
+                grid[x][y] = 0;
+            }
+        }
+    }
 }
 
+void corners1Callback (const geometry_msgs::PoseArray::ConstPtr& corners1_msg) 
+{
+    corners1_vec.clear();
+    int size = corners1_msg->poses.size();
+    for (int i=0;i<size;i++)
+    {
+        corners1_vec.push_back(Point((int)corners1_msg->poses[i].position.x,(int)corners1_msg->poses[i].position.y));
+    }
+}
 
+void corners2Callback (const geometry_msgs::PoseArray::ConstPtr& corners2_msg) 
+{
+    corners2_vec.clear();
+    int size = corners2_msg->poses.size();
+    for (int i=0;i<size;i++)
+    {
+        corners2_vec.push_back(Point((int)corners2_msg->poses[i].position.x,(int)corners2_msg->poses[i].position.y));
+    }
+}
 
 int main(int argc, char **argv)
 {
@@ -531,19 +570,19 @@ int main(int argc, char **argv)
 	s = ss.str();
 
 	if (ID_num == 1) {
-		other_num = 0;
+		other_num = 2;
 	} else {
 		other_num = 1;
 	}
 	stringstream other_ss;
 	other_ss << other_num;
 	string other_s;
-	other_s = ss.str();
+	other_s = other_ss.str();
 
 	string conv_facLocal = "/conv_fac" + s ;
     string conv_facRemote = "/conv_fac" + other_s;
-	string occupancyGridLocal = "/occupancyGrid" + s ;
-	string occupancyGridRemote = "/occupancyGrid" + other_s ;
+	string occupancyGridLocal = "/occupancyGridHigh" + s ;
+	string occupancyGridRemote = "/occupancyGridLow" + other_s ;
 	string vehicle_pose_s = "/vehicle_pose" + s ;
 	string confidenceLocal = "/confidence" + s ;
 	string confidenceRemote = "/confidence" + other_s;
@@ -565,9 +604,10 @@ int main(int argc, char **argv)
 
     // subscibe to vision outputs
     image_transport::ImageTransport it_astar(node);
-	image_transport::Subscriber sub_occupancyGridLocal = it_astar.subscribe(occupancyGridLocal,1, &occupancyGridLocalCallback); // use image_rect
-	image_transport::Subscriber sub_occupancyGridRemote = it_astar.subscribe(occupancyGridRemote,1, &occupancyGridRemoteCallback); // use image_rect
-
+	image_transport::Subscriber sub_occupancyGridLocal = it_astar.subscribe(occupancyGridLocal,1, &occupancyGridLocalCallback); 
+	image_transport::Subscriber sub_occupancyGridRemote = it_astar.subscribe(occupancyGridRemote,1, &occupancyGridRemoteCallback); 
+    ros::Subscriber sub_corners1 = node.subscribe("corners1",1,&corners1Callback);
+    ros::Subscriber sub_corners2 = node.subscribe("corners2",1,&corners2Callback);
     ros::Subscriber sub_vehicle = node.subscribe(vehicle_pose_s,2, &vehicleCallback);
     //ros::Subscriber sub_goal = node.subscribe("/goal_pose",2, &goalCallback);
     ros::Subscriber sub_goal_out = node.subscribe("goal_pose_out",2, &goal_outCallback);
