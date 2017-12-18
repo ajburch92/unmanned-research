@@ -31,8 +31,8 @@ using namespace cv;
 //m and n should start as camera resolution size
 int scale_factor = 8; // change this to a launch file paramerter. this is the downsampling applied to the occupancy grid.
 //res initially 1288x964 then resize to 1280x960, reduced to 160x120 (8x)
-const int n=160; // horizontal size of the grid  CAN I CHECK CONFIG FILE FOR THIS VALUE
-const int m=120; // vertical size size of the grid
+const int n=240;//160; // horizontal size of the grid  CAN I CHECK CONFIG FILE FOR THIS VALUE
+const int m=320;//120; // vertical size size of the grid
 static int grid[n][m];
 static int closed_nodes_grid[n][m]; // grid of closed (tried-out) nodes
 static int open_nodes_grid[n][m]; // grid of open (not-yet-tried) nodes
@@ -71,9 +71,17 @@ double confidenceRemote;
 int ID_num;
 int other_num;
 
-vector<Point> corners2_vec;
-vector<Point> corners1_vec;
+vector<Point2f> corners2_vec;
+vector<Point2f> corners1_vec;
+Point2f undistorted_pts[4];
+Point2f corners1_pts[4];
+Point2f corners2_pts[4];
 
+int corner_tic = 0;
+int board_w = 160;
+int board_h = 120;
+Mat H_camcam;
+Mat H_cambird;
 
 class node
 {
@@ -266,11 +274,34 @@ void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg)
     //translate to downsampled coordinates
     xtemp = vehicle_pose.x / scale_factor;
     ytemp = vehicle_pose.y / scale_factor;
-    xA  = (int)xtemp;
-    yA = (int)ytemp;
+
+    Point2f vehicle_pose_temp;
 
     // transform coordinates
+    if (ID_num > 1) { // ID = 2, HbirdHcamcamOG
+                float x = H_camcam.at<double>(0,0) * xtemp + H_camcam.at<double>(0,1) * ytemp + H_camcam.at<double>(0,2);
+                float y = H_camcam.at<double>(1,0) * xtemp + H_camcam.at<double>(1,1) * ytemp + H_camcam.at<double>(1,2);
+                float w = H_camcam.at<double>(2,0) * xtemp + H_camcam.at<double>(2,1) * ytemp + H_camcam.at<double>(2,2);
 
+                vehicle_pose_temp=Point(x/w,y/w);
+
+                x = H_cambird.at<double>(0,0) * vehicle_pose_temp.x + H_cambird.at<double>(0,1) * vehicle_pose_temp.y + H_cambird.at<double>(0,2);
+                y = H_cambird.at<double>(1,0) * vehicle_pose_temp.x + H_cambird.at<double>(1,1) * vehicle_pose_temp.y + H_cambird.at<double>(1,2);
+                w = H_cambird.at<double>(2,0) * vehicle_pose_temp.x + H_cambird.at<double>(2,1) * vehicle_pose_temp.y + H_cambird.at<double>(2,2);
+
+                vehicle_pose_temp=Point(x/w,y/w);
+
+    } else { // ID_num = 0 , HbirdOG
+
+                float x = H_cambird.at<double>(0,0) * xtemp + H_cambird.at<double>(0,1) * ytemp + H_cambird.at<double>(0,2);
+                float y = H_cambird.at<double>(1,0) * xtemp + H_cambird.at<double>(1,1) * ytemp + H_cambird.at<double>(1,2);
+                float w = H_cambird.at<double>(2,0) * xtemp + H_cambird.at<double>(2,1) * ytemp + H_cambird.at<double>(2,2);
+
+                vehicle_pose_temp=Point(x/w,y/w);
+
+    }
+    xA  = (int)vehicle_pose_temp.x;
+    yA = (int)vehicle_pose_temp.y;
     ROS_INFO("vehicleCallback (xA, yA): ( %i , %i )",xA,yA);
 }
 
@@ -355,14 +386,16 @@ void occupancyGridLocalCallback (const sensor_msgs::ImageConstPtr& msg)
 {
 	cv_bridge::CvImagePtr occupancyGridLocal_ptr;
 
-	gridDownLocal.setTo(Scalar(0));
-	occupancyGridLocal.setTo(Scalar(0));
-	gridDownLocal.setTo(Scalar(0));
-	
+	gridDownLocal.setTo(Scalar(0)); // just obstacles (world size)
+	occupancyGridLocal.setTo(Scalar(0)); // path pub (world size)
+
+    Mat occupancyGridLocalTemp; //framesize
+    occupancyGridLocalTemp.setTo(Scalar(0));
+
 	try
 	{
 		occupancyGridLocal_ptr  = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::MONO8);
-		ROS_INFO("cv_bridge msg read");
+		ROS_INFO("cv_bridge local msg read");
 	}
 	catch (cv_bridge::Exception& e)
 	{
@@ -370,21 +403,38 @@ void occupancyGridLocalCallback (const sensor_msgs::ImageConstPtr& msg)
 		return;
 	}
 
-    gridDownLocal = occupancyGridLocal_ptr -> image;
+    occupancyGridLocalTemp = occupancyGridLocal_ptr -> image;
+    
+    
+    if (ID_num > 1) { // ID = 2, HbirdHcamcamOG
+
+        warpPerspective(occupancyGridLocalTemp , occupancyGridLocalTemp, H_camcam, occupancyGridLocalTemp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+        warpPerspective(occupancyGridLocalTemp , occupancyGridLocalTemp, H_cambird, occupancyGridLocalTemp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+
+    } else { // ID_num = 0 , HbirdOG
+            warpPerspective(occupancyGridLocalTemp , occupancyGridLocalTemp, H_cambird, occupancyGridLocalTemp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+
+    }
+
+    Mat occupancyGridLocal(occupancyGridLocalTemp.rows*2,occupancyGridLocalTemp.cols*2,occupancyGridLocalTemp.type());
+    occupancyGridLocal.setTo(Scalar(0));
+    occupancyGridLocalTemp.copyTo(occupancyGridLocal(Rect(0,0,occupancyGridLocalTemp.cols,occupancyGridLocalTemp.rows)));
+    occupancyGridLocal.copyTo(gridDownLocal);
 
     // convert to grid size - ALREADY DOWN SAMPLED, JUST NEED TO INCREASE RESOLUTION UPON PUBLISHING
     //memcpy(gridDown.data, grid,n*m*sizeof(int)
     // fill matrix grid same size with object positions
+    
     for (int x = 1; x <= n; x++)
     {
 		for (int y = 1; y<=m; y++)
 		{
-			int pix = (int)gridDownLocal.at<uchar>(y,x);
+			int pix = (int)gridDownLocal.at<uchar>(x,y);
 			if (pix > 0) // obstacle
 			{
 				grid[x][y] = 1;
 			} else {
-				grid[x][y] = 0;
+				grid[x][y] = 1;
 			}
 		}
 	}
@@ -509,7 +559,7 @@ void occupancyGridRemoteCallback (const sensor_msgs::ImageConstPtr& msg)
 	try
 	{
 		occupancyGridRemote_ptr  = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::MONO8);
-		ROS_INFO("cv_bridge msg read");
+		ROS_INFO("cv_bridge remote msg read");
 	}
 	catch (cv_bridge::Exception& e)
 	{
@@ -518,12 +568,21 @@ void occupancyGridRemoteCallback (const sensor_msgs::ImageConstPtr& msg)
 	}
 
     gridDownRemote = occupancyGridRemote_ptr -> image;
+    //transform image 
+    if (ID_num > 1) { // ID = 2, HbirdHcamcamOG
 
-        for (int x = 1; x <= n/scale_factor; x++)
+        warpPerspective(gridDownRemote , gridDownRemote, H_camcam, gridDownRemote.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+        warpPerspective(gridDownRemote , gridDownRemote, H_cambird, gridDownRemote.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+
+    } else { // ID_num = 0 , HbirdOG
+            warpPerspective(gridDownRemote , gridDownRemote, H_cambird, gridDownRemote.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+
+    }
+    for (int x = 1; x <= n/scale_factor; x++)
     {
         for (int y = 1; y<=m/scale_factor; y++)
         {
-            int pix = (int)gridDownRemote.at<uchar>(y,x);
+            int pix = (int)gridDownRemote.at<uchar>(x,y);
             if (pix > 0) // obstacle
             {
                 grid[x][y] = 1;
@@ -534,6 +593,33 @@ void occupancyGridRemoteCallback (const sensor_msgs::ImageConstPtr& msg)
     }
 }
 
+void getPerspectives() {
+    corner_tic++;
+    if (corner_tic >= 2) { //only after both messages are received. 
+        corner_tic = 0;
+
+        // calc camcam H mat
+        H_camcam = getPerspectiveTransform(corners1_pts,corners2_pts);
+        cout << H_camcam << endl;
+    }
+        
+    // calc cambird H mat
+
+    undistorted_pts[0].x=corners1_pts[0].x;
+    undistorted_pts[1].x=corners1_pts[0].x+board_w-1;
+    undistorted_pts[2].x=corners1_pts[0].x;
+    undistorted_pts[3].x=corners1_pts[0].x+board_w-1;
+    undistorted_pts[0].y=corners1_pts[0].y;
+    undistorted_pts[1].y=corners1_pts[0].y;
+    undistorted_pts[2].y=corners1_pts[0].y+board_h-1;
+    undistorted_pts[3].y=corners1_pts[0].y+board_h-1;
+
+    H_cambird = getPerspectiveTransform(undistorted_pts, corners1_pts);
+
+    cout << H_cambird << endl;
+
+}
+
 void corners1Callback (const geometry_msgs::PoseArray::ConstPtr& corners1_msg) 
 {
     corners1_vec.clear();
@@ -541,7 +627,10 @@ void corners1Callback (const geometry_msgs::PoseArray::ConstPtr& corners1_msg)
     for (int i=0;i<size;i++)
     {
         corners1_vec.push_back(Point((int)corners1_msg->poses[i].position.x,(int)corners1_msg->poses[i].position.y));
+        corners1_pts[i] = corners1_vec[i];    
     }
+
+    getPerspectives();
 }
 
 void corners2Callback (const geometry_msgs::PoseArray::ConstPtr& corners2_msg) 
@@ -551,8 +640,13 @@ void corners2Callback (const geometry_msgs::PoseArray::ConstPtr& corners2_msg)
     for (int i=0;i<size;i++)
     {
         corners2_vec.push_back(Point((int)corners2_msg->poses[i].position.x,(int)corners2_msg->poses[i].position.y));
+        corners1_pts[i] = corners1_vec[i];    
     }
+
+    getPerspectives();
+
 }
+
 
 int main(int argc, char **argv)
 {
@@ -601,6 +695,17 @@ int main(int argc, char **argv)
 	vehicle_pose.x = 0;
 	vehicle_pose.y = 0;
 
+    undistorted_pts[0].x=0;
+    undistorted_pts[1].x=board_w-1;
+    undistorted_pts[2].x=0;
+    undistorted_pts[3].x=board_w-1;
+    undistorted_pts[0].y=0;
+    undistorted_pts[1].y=0;
+    undistorted_pts[2].y=board_h-1;
+    undistorted_pts[3].y=board_h-1;
+
+    H_camcam = getPerspectiveTransform(undistorted_pts, undistorted_pts);
+    H_cambird = getPerspectiveTransform(undistorted_pts, undistorted_pts);
 
     // subscibe to vision outputs
     image_transport::ImageTransport it_astar(node);
@@ -619,6 +724,8 @@ int main(int argc, char **argv)
     // publish topics for the output visualization and for the next waypoint for the low level controller.
     path_pub = it_astar.advertise(pathGrid,1);
 	wp_pub = node.advertise<geometry_msgs::PoseArray>(wp_pose,2);
+
+
     
     ROS_INFO("Start path planning operations");
 

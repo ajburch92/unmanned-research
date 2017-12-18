@@ -2,7 +2,8 @@
 #include "nav_msgs/Odometry.h"
 #include <std_msgs/Float64.h>
 #include <std_msgs/Int8.h>
-
+#include <tf/transform_broadcaster.h>
+#include <nav_msgs/Odometry.h>
 //#include "vehicle_pose.h"
 //#include "wp_pose.h"
 #include <geometry_msgs/Pose2D.h>
@@ -172,10 +173,10 @@ void convFacCallback (const std_msgs::Float64::ConstPtr& conv_fac_msg)
     ROS_INFO("conv_fac = %f" , conv_fac);
 }
    
-void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
+void vehicleCallback (const nav_msgs::Odometry::ConstPtr& vehicle_odom_msg) 
 {
-    x_vehicle  = vehicle_pose_msg->x;
-    y_vehicle = vehicle_pose_msg->y;
+    x_vehicle  = vehicle_odom_msg->pose.pose.position.x;
+    y_vehicle = vehicle_odom_msg->pose.pose.position.y;
     p_i[0] = x_vehicle;
     p_i[1] = y_vehicle;
     ROS_INFO("vehicleCallback: ( %f , %f )",x_vehicle,y_vehicle);
@@ -265,14 +266,14 @@ int main(int argc, char **argv)
   s = ss.str();
 
   string conv_fac = "/conv_fac" + s ;
-  string vehicle_pose = "/vehicle_pose" + s ;
+  string vehicle_odom = "/vehicle_odom" + s ;
   string wp_pose = "/wp_pose" + s ;
   string arm_bool = "/arm_bool" + s ;
   string target_angle = "/target_angle" + s ;
   string target_speed = "/target_speed" + s ;
   string target_wp = "/target_wp" + s ;
 
-  sub_vehicle = n.subscribe(vehicle_pose,20, &vehicleCallback);
+  sub_vehicle = n.subscribe(vehicle_odom,20, &vehicleCallback);
   sub_wp = n.subscribe(wp_pose,20, &waypointCallback);
   sub_conv_fac = n.subscribe(conv_fac,20, &convFacCallback);
   sub_arm_bool = n.subscribe(arm_bool,20, &armCallback);

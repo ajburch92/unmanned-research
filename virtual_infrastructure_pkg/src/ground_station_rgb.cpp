@@ -77,7 +77,7 @@ public:
 		string vehicle_pose = "/vehicle_pose" + s ;
 		string arm_bool = "/arm_bool" + s ;
 		string confidence = "/confidence" + s ;
-		string corners_pose = "/corners_pose" + s ;
+		string corners_pose = "/corners" + s ;
 
 		rgb_sub_ = it_rgb.subscribe(image_rect_color,1, &RGBImageProcessor::rgbFeedCallback, this); // use image_rect
 		rgb_pub_ = it_rgb.advertise(ground_station_rgb,1);
