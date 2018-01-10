@@ -40,8 +40,8 @@ public:
 		current_time = ros::Time::now();
 		last_time = ros::Time::now();
 
-
-	    nh_odom.param("ID_num",ID_num,0);
+		ros::NodeHandle nh_odomp("~");
+	    nh_odomp.param("ID_num",ID_num,0);
 		//ID_num = 1;
 
 		stringstream ss;

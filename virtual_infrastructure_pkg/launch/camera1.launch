@@ -6,9 +6,9 @@
   <arg name="calibrated" default="1" />
 
   <group ns="$(arg camera_name)">
-    <node pkg="nodelet" type="nodelet" name="camera_nodelet_manager1" args="manager" />
+    <node pkg="nodelet" type="nodelet" name="camera_nodelet_manager" args="manager" />
 
-    <node pkg="nodelet" type="nodelet" name="camera_nodelet1"
+    <node pkg="nodelet" type="nodelet" name="camera_nodelet"
           args="load pointgrey_camera_driver/PointGreyCameraNodelet camera_nodelet_manager" >
       <param name="frame_id" value="camera" />
       <param name="serial" value="$(arg camera_serial)" />
@@ -23,7 +23,7 @@
              value="file://$(env HOME)/.ros/camera_info/$(arg camera_serial).yaml" />
     </node>
 
-    <node pkg="nodelet" type="nodelet" name="image_proc_debayer1"
+    <node pkg="nodelet" type="nodelet" name="image_proc_debayer"
           args="load image_proc/debayer camera_nodelet_manager">
     </node>
   </group>

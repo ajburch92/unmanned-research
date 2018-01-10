@@ -256,8 +256,8 @@ int main(int argc, char **argv)
 
   ros::init(argc, argv, "vehicle_planner");
   ros::NodeHandle n;
-
-  n.param("ID_num",ID_num,0);
+  ros::NodeHandle np("~");
+  np.param("ID_num",ID_num,0);
   //ID_num = 1;
   
   stringstream ss;

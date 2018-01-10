@@ -2,7 +2,7 @@
 
       <include file="$(find virtual_infrastructure_pkg)/launch/camera2.launch"/>
       
-      <node name="image_proc2" 
+      <node name="image_proc" 
             pkg="image_proc" 
             type="image_proc"
             ns="camera2" >

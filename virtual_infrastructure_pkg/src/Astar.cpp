@@ -654,8 +654,9 @@ int main(int argc, char **argv)
     // init ROS node
     ros::init(argc, argv, "astar_planner");
     ros::NodeHandle node;
+    ros::NodeHandle nodep("~");
 
-    node.param("ID_num",ID_num,0);
+    nodep.param("ID_num",ID_num,0);
     //ID_num = 1;
 
 	stringstream ss;
