@@ -41,8 +41,8 @@ public:
 		last_time = ros::Time::now();
 
 
-	    //nh_odom.param("ID_num",ID_num,-1);
-		ID_num = 1;
+	    nh_odom.param("ID_num",ID_num,0);
+		//ID_num = 1;
 
 		stringstream ss;
 		ss << ID_num;

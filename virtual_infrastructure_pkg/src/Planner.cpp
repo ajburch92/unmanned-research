@@ -64,7 +64,7 @@ double x_vehicle, y_vehicle, x_wp, y_wp;
 vector<Point> vector_wp;
 
 double conv_fac;
-double ID_num;
+int ID_num;
 
 int arm_bool;
 
@@ -257,8 +257,8 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "vehicle_planner");
   ros::NodeHandle n;
 
-  //n.param("ID_num",ID_num,-1);
-  ID_num = 1;
+  n.param("ID_num",ID_num,0);
+  //ID_num = 1;
   
   stringstream ss;
   ss << ID_num;

@@ -1,0 +1,42 @@
+<launch>  
+
+    <include file="$(find virtual_infrastructure_pkg)/launch/camera1.launch"/>
+
+    <node name="image_proc" 
+          pkg="image_proc" 
+          type="image_proc"
+          ns="camera1">
+
+    </node>
+
+    <node pkg="virtual_infrastructure_pkg"
+          type="ground_station_rgb_node"
+          name="ground_station_rgb_node">
+          <param name="ID_num" value="1" />
+
+    </node>
+
+    <node pkg="virtual_infrastructure_pkg"
+          type="vehicle_odom"
+          name="vehicle_odom">
+          <param name="ID_num" value="1" />
+
+    </node>
+
+    <node pkg="virtual_infrastructure_pkg"
+          type="vehicle_planner"
+          name="vehicle_planner">
+          <param name="ID_num" value="1" />
+
+    </node>
+
+    <node pkg="virtual_infrastructure_pkg"
+          type="astar_planner"
+          name="astar_planner">
+          <param name="ID_num" value="1" />
+
+    </node>
+
+
+</launch>
+

@@ -52,14 +52,15 @@ public:
 
 		ros::NodeHandle nh_rgb;
 		image_transport::ImageTransport it_rgb(nh_rgb);
+		ros::NodeHandle nh_rgbp("~");
 
 
 		// store launch params
 		//nh_rgb.param("checkerboard_width", checkerboard_width, -1);
 		//nh_rgb.param("checkerboard_height", checkerboard_height, -1);
 
-		//nh_rgb.param("ID_num",ID_num,-1);
-		ID_num = 1;
+		nh_rgbp.param("ID_num",ID_num,0);
+		//ID_num = 1;
 		checkerboard_height = 0.3 ; // meters; or get square size, and multiply 
 		checkerboard_width = 0.55 ; // meters
 
