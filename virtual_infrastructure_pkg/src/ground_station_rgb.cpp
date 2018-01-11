@@ -1019,10 +1019,13 @@ public:
 			rgb_arm_bool_pub.publish(arm_bool_msg);
 
 			// Output modified video stream
-			img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, objectFeed);
-			img_bridge.toImageMsg(img_msg); // from cv _bridge to sensor_msgs::Image
-			rgb_pub_.publish(img_msg); 
-
+			if (framedrop_count >= 4) 
+		    {
+		    	framedrop_count = 0;
+				img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, frameoutDown);
+				img_bridge.toImageMsg(img_msg); // from cv _bridge to sensor_msgs::Image
+				rgb_pub_.publish(img_msg); 
+			}
 			// send high res occupancy grid
 			occupancyHigh_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8,gridDownHigh);
 			//send low res occupancy grid
@@ -1038,6 +1041,7 @@ public:
 			rgb_confidence_pub.publish(confidence_msg);
 
 			counter++;
+			framedrop_count++;
 			ROS_INFO("counter=%i",counter);
 	    }
 	}
@@ -1047,6 +1051,7 @@ private:
 
 
 	int counter = 0;
+	int framedrop_count = 0;
 
 	// generate Mats
 	Mat cameraFeed;

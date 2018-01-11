@@ -36,7 +36,7 @@
 
 using namespace std;
 using namespace cv;
-const int scale_factor = 2; // this needs to be the same as in the rgb node. change to launch file parameter. 
+const int scale_factor = 1; // this needs to be the same as in the rgb node. change to launch file parameter. 
 // this may not work for all resolutions. this value needs to match the value in astar. retrive from param launch file.
 
 const string windowName = "Visualizer";
@@ -72,12 +72,13 @@ public:
 	ros::NodeHandle nh;
 	image_transport::ImageTransport it_nh(nh);
 	pub_viz = it_nh.advertise("/visualization",1);
+	pub_worldMap = it_nh.advertise("/worldMap",1);
 	pub_goal_out = nh.advertise<geometry_msgs::PoseArray>("/goal_pose_out",1);
 	key_cmd_pub = nh.advertise<std_msgs::Int8>("/key_cmd",1);
 
     sub_corners1 = nh.subscribe("corners1",1,&DataProcessor::corners1Callback,this);
     sub_corners2 = nh.subscribe("corners2",1,&DataProcessor::corners2Callback,this);
-
+	sub_rgb2 = it_nh.subscribe("/ground_station_rgb2",5, &DataProcessor::rgbFeed2Callback, this); 
 	sub_rgb1 = it_nh.subscribe("/ground_station_rgb1",5, &DataProcessor::rgbFeed1Callback, this); 
 	sub_target_wp1 = nh.subscribe("/target_wp1",5, &DataProcessor::targetwp1Callback,this);
 	sub_vector_wp1 = nh.subscribe("/wp_pose1",5, &DataProcessor::vectorwp1Callback,this);
@@ -104,6 +105,8 @@ public:
 
     H_camcam = getPerspectiveTransform(undistorted_pts, undistorted_pts);
     H_cambird = getPerspectiveTransform(undistorted_pts, undistorted_pts);
+	cout << H_camcam << endl;
+	cout << H_cambird << endl;
 
 	// Set each element in history to 0
 	for (int i = 0; i < VEHICLE_POSE_HISTORY_SIZE; i++) {
@@ -125,10 +128,21 @@ public:
 
 	void downsampleFrame(Mat frame) {
 		scaledFrame = frame;
-		Size size(scaledFrame.cols / scale_factor , scaledFrame.rows / scale_factor); // this should be 160 x 120 
+		Size size(scaledFrame.cols * scale_factor , scaledFrame.rows * scale_factor); // this should be 160 x 120 
 		resize(frame,scaledFrame,size);
+		ROS_INFO("Frame Size: %i x %i" , frame.cols, frame.rows);
 
-		ROS_INFO("resizedFedd : %i x %i" , scaledFrame.cols, scaledFrame.rows);
+		ROS_INFO("resizedFrame : %i x %i" , scaledFrame.cols, scaledFrame.rows);
+
+	}
+
+	void downsampleFrame2(Mat frame2) {
+		scaledFrame2 = frame2;
+		Size size2(scaledFrame2.cols * scale_factor , scaledFrame2.rows * scale_factor); // this should be 160 x 120 
+		resize(frame2,scaledFrame2,size2);
+		ROS_INFO("Frame2 Size : %i x %i" , frame2.cols, frame2.rows);
+
+		ROS_INFO("resizedFrame2 : %i x %i" , scaledFrame2.cols, scaledFrame2.rows);
 
 	}
 
@@ -296,7 +310,7 @@ public:
 		{
 			for (int j = 0; j < goal_points.size(); j++)
 			{
-				circle(frame,goal_points[j], 2, goal_color,30);
+				circle(frame,goal_points[j], 2, goal_color,10);
 			}
 
 		}
@@ -337,6 +351,35 @@ public:
 
 	    cout << H_cambird << endl;
 
+	}
+
+	void updateMap(Mat temp, int ID) {
+	    if (ID > 1) { // ID = 2, HbirdHcamcamOG
+	        warpPerspective(temp , temp, H_camcam, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+    	    warpPerspective(temp , temp, H_cambird, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+	    	Mat worldMaptemp(temp.rows*3,temp.cols*3,temp.type());
+    		temp.copyTo(worldMaptemp(Rect(0,0,160,120)));
+    		worldMaptemp.copyTo(worldMap);
+	    } else { // ID_num = 0 , HbirdOG
+            warpPerspective(temp , temp, H_cambird, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+    		Mat worldMaptemp(temp.rows*3,temp.cols*3,temp.type());
+    		worldMaptemp.setTo(Scalar(0));
+
+    		temp.copyTo(worldMaptemp(Rect(0,0,160,120)));
+    		worldMaptemp.copyTo(worldMap);
+    	}
+
+    	if (worldMap_tic >= 2) {
+    		worldMap_tic = 0;
+	    	std_msgs::Header header;
+	    	header.stamp = ros::Time::now();
+	    	cv_bridge::CvImage worldMap_bridge;
+	    	sensor_msgs::Image worldMap_msg;
+	    	worldMap_bridge = cv_bridge::CvImage(header,sensor_msgs::image_encodings::BGR8, worldMap);
+	    	worldMap_bridge.toImageMsg(worldMap_msg);
+	    	pub_worldMap.publish(worldMap_msg);
+	   	}
+	   	worldMap_tic++;
 	}
 
 	void corners1Callback (const geometry_msgs::PoseArray::ConstPtr& corners1_msg) 
@@ -390,16 +433,11 @@ public:
 	    frame = cv_ptr -> image;
 	    //Mat world_temp(frame.rows*2,frame.cols*2,frame.type());
 	    //frame.copyTo(world_temp(Rect(frame.cols,frame.rows,frame.cols*2,frame.rows*2)));
-		int ID_num = 1;
-	    if (ID_num > 1) { // ID = 2, HbirdHcamcamOG
 
 	    warpPerspective(frame , frame, H_camcam, frame.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 	    warpPerspective(frame , frame, H_cambird, frame.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 
-	    } else { // ID_num = 1 , HbirdOG
-	            warpPerspective(frame , frame, H_cambird, frame.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 
-	    }
 	
 	    // update mouseclick events
 	    if (goal_points.size() > 0 ) 
@@ -407,7 +445,7 @@ public:
 	    	updateGoal();
 		}
 
-
+		updateMap(frame,1);
    	    // draw vizualization on frame
 	    drawData(frame);
 	    // structure msg
@@ -441,16 +479,16 @@ public:
 	      counter++;
 	}
 	
-/*	void rgbFeed2Callback(const sensor_msgs::ImageConstPtr& msg)
+	void rgbFeed2Callback(const sensor_msgs::ImageConstPtr& msg2)
 	{
 
-		cv_bridge::CvImage img_bridge;
-		sensor_msgs::Image img_msg;
-		cv_bridge::CvImagePtr cv_ptr;
+		cv_bridge::CvImage img_bridge2;
+		sensor_msgs::Image img_msg2;
+		cv_bridge::CvImagePtr cv_ptr2;
 		
 		try
 		{
-			cv_ptr  = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::BGR8);
+			cv_ptr2  = cv_bridge::toCvCopy(msg2,sensor_msgs::image_encodings::BGR8);
 		}
 		catch (cv_bridge::Exception& e)
 		{
@@ -458,50 +496,24 @@ public:
 			return;
 		}
 
-	    std_msgs::Header header; //empty header
-	    header.seq = counter; // user defined counter
-	    header.stamp = ros::Time::now(); // time
-	    frame = cv_ptr -> image;
+	    std_msgs::Header header2; //empty header
+	    header2.seq = counter2; // user defined counter
+	    header2.stamp = ros::Time::now(); // time
+	    frame2 = cv_ptr2 -> image;
 
-	    // update mouseclick events
-	    if (goal_points.size() > 0 ) 
-		{
-	    	updateGoal();
-		}
+	    warpPerspective(frame2 , frame2, H_cambird, frame2.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 
 
-   	    // draw vizualization on frame
-	    drawData(frame);
-	    // structure msg
-		
-		downsampleFrame(frame);
 
-        imshow(windowName,scaledFrame);
+		ROS_INFO("GROUNDSTATION2 FRAME COLLECTED, size : %i x %i" , frame2.cols, frame2.rows);
+		updateMap(frame2,2);
 
-		char k = (char) cv::waitKey(30); //wait for esc key
+		downsampleFrame2(frame2);
 
-		std_msgs::Int8 key_cmd_msg;
-		//if(k == 27) break;
-		if(k== ' ')  // start tracking : case 1 and key_cmd int value 1
-		{
-			key_cmd_msg.data = 1; 
-		} 
-		else if (k==27) // reinitialize background : case 2 and key_cmd int value 2
-		{
-			key_cmd_msg.data = 2; 
-		}
-		else {key_cmd_msg.data = 0;}
-		key_cmd_pub.publish(key_cmd_msg);
+		ROS_INFO("GROUNDSTATION2 FRAME DOWNSAMPLED, size : %i x %i" , scaledFrame2.cols, scaledFrame2.rows);
 
-        //publish viz
-	    img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, scaledFrame);
-	    img_bridge.toImageMsg(img_msg); // from cv _bridge to sensor_msgs::Image
-	    pub_viz.publish(img_msg); 
-
-        //publish MSSP msg 
-
-	      counter++;
-	}*/
+	    counter2++;
+	}
 
 
 private:
@@ -509,9 +521,13 @@ private:
 	// INITIALIZATION ////////////////////////////////////////////////////////////////////
 
 	int counter = 0;
+	int counter2 = 0;
 	Mat scaledFrame;
+	Mat scaledFrame2;
 	Mat frame;
-	Mat world;
+	Mat frame2;
+	Mat worldMap;
+
 
 	//astar Params
 	int astar_size = 150; // change to length of car
@@ -519,6 +535,7 @@ private:
 	image_transport::Subscriber sub_rgb1;
 	image_transport::Subscriber sub_rgb2;
 	image_transport::Publisher pub_viz;
+	image_transport::Publisher pub_worldMap;
 	ros::Publisher pub_goal_out;
 	ros::Publisher key_cmd_pub;
 
@@ -564,6 +581,7 @@ private:
 	Point2f corners2_pts[4];
 
 	int corner_tic = 0;
+	int worldMap_tic = 0;
 	int board_w = 80;
 	int board_h = 60;
 	Mat H_camcam;
@@ -584,6 +602,7 @@ int main(int argc, char** argv)
 	ROS_INFO("launching data_processor_node");
 
 	namedWindow(windowName);
+
    	cv::setMouseCallback(windowName,onMouse,(void*)(&goal_points));
 
 	DataProcessor dp;
