@@ -360,7 +360,7 @@ public:
 	    	Mat worldMaptemp(temp.rows*3,temp.cols*3,temp.type());
     		temp.copyTo(worldMaptemp(Rect(0,0,160,120)));
     		worldMaptemp.copyTo(worldMap);
-	    } else { // ID_num = 0 , HbirdOG
+	    } else { // ID_num = 1 , HbirdOG
             warpPerspective(temp , temp, H_cambird, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
     		Mat worldMaptemp(temp.rows*3,temp.cols*3,temp.type());
     		worldMaptemp.setTo(Scalar(0));
@@ -452,7 +452,8 @@ public:
 		
 		downsampleFrame(frame);
 
-        imshow(windowName,scaledFrame);
+        //imshow(windowName,scaledFrame);
+        imshow(windowName,frame);
 
 		char k = (char) cv::waitKey(30); //wait for esc key
 
