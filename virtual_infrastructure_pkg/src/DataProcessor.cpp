@@ -358,14 +358,21 @@ public:
 	        warpPerspective(temp , temp, H_camcam, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
     	    warpPerspective(temp , temp, H_cambird, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 	    	Mat worldMaptemp(temp.rows*3,temp.cols*3,temp.type());
-    		temp.copyTo(worldMaptemp(Rect(0,0,160,120)));
+    		worldMaptemp.setTo(Scalar(0));
+    		temp.copyTo(worldMaptemp(Rect(160+(corners1_pts[0].x/scale_factor),120+(corners1_pts[0].y/scale_factor),160,120)));
+    		worldMaptemp = worldMaptemp + worldMap;
     		worldMaptemp.copyTo(worldMap);
+
+		    drawData(worldMap);
+    		imshow(windowName,worldMap);
+
 	    } else { // ID_num = 1 , HbirdOG
             warpPerspective(temp , temp, H_cambird, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
     		Mat worldMaptemp(temp.rows*3,temp.cols*3,temp.type());
     		worldMaptemp.setTo(Scalar(0));
 
-    		temp.copyTo(worldMaptemp(Rect(0,0,160,120)));
+    		temp.copyTo(worldMaptemp(Rect(160,120,160,120)));
+
     		worldMaptemp.copyTo(worldMap);
     	}
 
@@ -447,13 +454,11 @@ public:
 
 		updateMap(frame,1);
    	    // draw vizualization on frame
-	    drawData(frame);
 	    // structure msg
 		
 		downsampleFrame(frame);
 
-        //imshow(windowName,scaledFrame);
-        imshow(windowName,frame);
+
 
 		char k = (char) cv::waitKey(30); //wait for esc key
 
@@ -466,6 +471,7 @@ public:
 		else if (k==27) // reinitialize background : case 2 and key_cmd int value 2
 		{
 			key_cmd_msg.data = 2; 
+			worldMap.setTo(Scalar(0));
 		}
 		else {key_cmd_msg.data = 0;}
 		key_cmd_pub.publish(key_cmd_msg);
