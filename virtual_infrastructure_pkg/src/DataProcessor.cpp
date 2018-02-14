@@ -317,6 +317,15 @@ public:
 	    target_angle_endpoint.y = (int) round(vehicle_pose.y + LOS_RADIUS * sin(target_angle));		    
 	    line(frame, vehicle_pose, target_angle_endpoint, Scalar(255, 128, 0), HEADING_LINE_THICKNESS, 8, 0);
 
+	   	circle(frame, Point(160+corners1_pts[0].x/scale_factor,120+corners1_pts[0].y/scale_factor), 2, Scalar(255,0,0),1);
+	   	circle(frame, Point(160+corners1_pts[1].x/scale_factor,120+corners1_pts[1].y/scale_factor), 2, Scalar(0,255,0),1);
+	   	circle(frame, Point(160+corners1_pts[2].x/scale_factor,120+corners1_pts[2].y/scale_factor), 2, Scalar(0,0,255),1);
+	   	circle(frame, Point(160+corners1_pts[3].x/scale_factor,120+corners1_pts[3].y/scale_factor), 2, Scalar(0,255,255),1);
+
+	   	circle(frame, Point(160+corners1_pts[0].x/scale_factor-corners2_pts[0].x/scale_factor,120+corners1_pts[0].y/scale_factor - corners2_pts[0].y/scale_factor), 4, Scalar(255,0,0),1);
+	   	circle(frame, Point(160+corners1_pts[1].x/scale_factor-corners2_pts[1].x/scale_factor,120+corners1_pts[1].y/scale_factor - corners2_pts[1].y/scale_factor), 4, Scalar(255,0,0),1);
+	   	circle(frame, Point(160+corners1_pts[2].x/scale_factor-corners2_pts[2].x/scale_factor,120+corners1_pts[2].y/scale_factor - corners2_pts[2].y/scale_factor), 4, Scalar(255,0,0),1);
+	   	circle(frame, Point(160+corners1_pts[3].x/scale_factor-corners2_pts[3].x/scale_factor,120+corners1_pts[3].y/scale_factor - corners2_pts[3].y/scale_factor), 4, Scalar(255,0,0),1);
 	}
 
 	void getPerspectives() {
@@ -342,7 +351,7 @@ public:
 	    undistorted_pts[2].y=corners1_pts[0].y+board_h-1;
 	    undistorted_pts[3].y=corners1_pts[0].y+board_h-1;
 
-	    
+
 
   //   	undistorted_pts[0].x=0;
 		// undistorted_pts[1].x=board_w-1;
@@ -365,23 +374,24 @@ public:
 
 	void updateMap(Mat temp, int ID) {
     	Mat worldMaptemp(temp.rows*3,temp.cols*3,temp.type(),Scalar(0));
-    	if (worldMap_tic < 1) { //zero out
+    	if (counter < 1) { //zero out
     		worldMaptemp.copyTo(worldMap);
     	}
 	   	worldMap_tic++;;
     	//else, for 2 count, add images from ID 1 and 2
 	    if (ID > 1) { // ID = 2, HbirdHcamcamOG
-	        //warpPerspective(temp , temp, H_camcam, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+	        warpPerspective(temp , temp, H_camcam, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
     	    //warpPerspective(temp , temp, H_cambird, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-    		temp.copyTo(worldMaptemp(Rect(160+(corners1_pts[0].x/scale_factor),120+(corners1_pts[0].y/scale_factor),160,120)));
+    		temp.copyTo(worldMaptemp(Rect(temp.cols+(((int)(corners1_pts[0].x/scale_factor))-((int)(corners2_pts[0].x/scale_factor))),temp.rows+((int)(corners1_pts[0].y/scale_factor)-((int)(corners2_pts[0].y/scale_factor))),160,120)));
     		addWeighted(worldMap,0.5,worldMaptemp,0.5,0.0,worldMap);
     		//worldMap = worldMaptemp + worldMap;
     		//worldMaptemp.copyTo(worldMap);
 
 	    } else { // ID_num = 1 , HbirdOG
-	    	//upsampleFrame(temp);
-            warpPerspective(temp , temp, H_cambird, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(255));
-			//downsampleFrame(temp);
+	    	upsampleFrame(temp);
+
+            //warpPerspective(temp , temp, H_cambird, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(255));
+			downsampleFrame(temp);
 
     		temp.copyTo(worldMaptemp(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
             //warpPerspective(worldMaptemp , worldMaptemp, H_cambird, worldMaptemp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(255));
@@ -420,6 +430,7 @@ public:
 	        corners1_vec.push_back(Point2f(corners1_msg->poses[i].position.x,corners1_msg->poses[i].position.y));
 	        corners1_pts[i] = corners1_vec[i];    
 	    }
+	    ROS_INFO("corners1");
         cout << corners1_vec << endl;
 
 	    getPerspectives();
@@ -434,8 +445,10 @@ public:
 	    for (int i=0;i<size;i++)
 	    {
 	        corners2_vec.push_back(Point((int)corners2_msg->poses[i].position.x,(int)corners2_msg->poses[i].position.y));
-	        corners1_pts[i] = corners1_vec[i];    
+	        corners2_pts[i] = corners2_vec[i];    
 	    }
+
+		ROS_INFO("corners2");
         cout << corners2_vec << endl;
 
 	    getPerspectives();
