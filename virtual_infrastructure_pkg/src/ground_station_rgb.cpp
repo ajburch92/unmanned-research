@@ -752,7 +752,9 @@ public:
 	    	putText(resizedFeed ,"LOOKING FOR CHECKERBOARD",Point(0,50),1,2,Scalar(0,0,255),2); 
 	    	
 	    	// Output resized video stream
-			img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, resizedFeed);
+	    	downsampleFrameOut(resizedFeed);
+
+			img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, frameoutDown);
 			img_bridge.toImageMsg(img_msg); // from cv _bridge to sensor_msgs::Image
 			rgb_pub_.publish(img_msg); 
 			if (patternfound < 1) {
@@ -776,23 +778,25 @@ public:
     			geometry_msgs::Pose corners_pose_msg;
 
 	   			for (int n=0;n<=3; n++) {
-		            corners_pose_msg.position.x = double(imgPts[n].x);
-		            corners_pose_msg.position.y = double(imgPts[n].y);
-		            poseArray.poses.push_back(corners_pose_msg);     				
+		            corners_pose_msg.position.x = (imgPts[n].x);
+		            corners_pose_msg.position.y = (imgPts[n].y);
+		            poseArray.poses.push_back(corners_pose_msg);     
+           	        cout << imgPts[n] << endl;
+				
     			}
 
 				corners_pub.publish(poseArray); 
 				ROS_INFO("corners published");
 
 
-/*	    		objPts[0].x=0;
+	    		objPts[0].x=0;
 	    		objPts[1].x=board_w-1;
 	    		objPts[2].x=0;
 	    		objPts[3].x=board_w-1;
 	    		objPts[0].y=0;
 	    		objPts[1].y=0;
 	    		objPts[2].y=board_h-1;
-	    		objPts[3].y=board_h-1;*/
+	    		objPts[3].y=board_h-1;
 	    		// scale these accordingly
 /*
 	    		//get gs2 transformation matrix
@@ -818,16 +822,12 @@ public:
 	    		*/
 
 
-/*	    		H = getPerspectiveTransform(objPts, imgPts);
+	    		H = getPerspectiveTransform(objPts, imgPts);
 	    		cout << H.at<double>(0,0) <<  endl;
-	    		H.at<double>(2,2) = 21;
-	    		Mat H2 = getPerspectiveTransform(imgPts, objPts);
-
-
-	    		H2.at<double>(2,2) = birdseyeHeight;
-
-	    		warpPerspective(resizedFeed , birdseyeFeed, H, resizedFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+	    		H.at<double>(2,2) = birdseyeHeight;
+	    		//warpPerspective(resizedFeed , birdseyeFeed, H, resizedFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 				
+				/*
 				imgPts_vec.push_back(Point2f(imgPts[0].x,imgPts[0].y));
 				imgPts_vec.push_back(Point2f(imgPts[1].x,imgPts[1].y));
 				imgPts_vec.push_back(Point2f(imgPts[2].x,imgPts[2].y));
@@ -852,23 +852,23 @@ public:
 	    		transImgPts[2]=transImgPts_vec[2];
 	    		transImgPts[3]=transImgPts_vec[3];
 				ROS_INFO("image calibrated");
-*/
+				*/
+
 	    	} else { // transform each frame
 	
-/*	    		warpPerspective(resizedFeed , birdseyeFeed, H, resizedFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+		   		//warpPerspective(resizedFeed , birdseyeFeed, H, resizedFeed.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 
-		    	circle(birdseyeFeed, transImgPts[0], 10, Scalar(255,0,0),2);
-		    	circle(birdseyeFeed, transImgPts[1], 10, Scalar(0,255,0),2);
-		    	circle(birdseyeFeed, transImgPts[2], 10, Scalar(0,0,255),2);
-		    	circle(birdseyeFeed, transImgPts[3], 10, Scalar(0,255,255),2);		
+		    	// circle(birdseyeFeed, transImgPts[0], 10, Scalar(255,0,0),2);
+		    	// circle(birdseyeFeed, transImgPts[1], 10, Scalar(0,255,0),2);
+		    	// circle(birdseyeFeed, transImgPts[2], 10, Scalar(0,0,255),2);
+		    	// circle(birdseyeFeed, transImgPts[3], 10, Scalar(0,255,255),2);		
 
-		    	circle(birdseyeFeed, imgPts[0], 5, Scalar(255,0,0),2);
-		    	circle(birdseyeFeed, imgPts[1], 5, Scalar(0,255,0),2);
-		    	circle(birdseyeFeed, imgPts[2], 5, Scalar(0,0,255),2);
-		    	circle(birdseyeFeed, imgPts[3], 5, Scalar(0,255,255),2);*/
+		    	// circle(birdseyeFeed, imgPts[0], 5, Scalar(255,0,0),2);
+		    	// circle(birdseyeFeed, imgPts[1], 5, Scalar(0,255,0),2);
+		    	// circle(birdseyeFeed, imgPts[2], 5, Scalar(0,0,255),2);
+		    	// circle(birdseyeFeed, imgPts[3], 5, Scalar(0,255,255),2);
 
-		    	ROS_INFO("image transformed");
-
+		    	// ROS_INFO("image transformed");
 			}	
 
 			birdseyeFeed = resizedFeed ;
@@ -954,7 +954,7 @@ public:
 				//detectObjects(GREENthreshold,objectFeed,"green");
 				detectObjects(YELLOWthreshold,objectFeed,"vehicle");
 				//detectObjects(REDthreshold,objectFeed,"red");
-				putText(objectFeed,"DISARMED : DETECTING VEHICLE",Point(0,50),1,1.5,Scalar(0,0,255),2); 
+				putText(objectFeed,"DISARMED : DETECTING VEHICLE",Point(0,50),1,1.5,Scalar(0,255,0),2); 
 
 				// Set each element in history to 0
 				for (int i = 0; i < VEHICLE_POSE_HISTORY_SIZE; i++) {

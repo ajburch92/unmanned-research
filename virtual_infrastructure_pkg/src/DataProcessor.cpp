@@ -36,7 +36,7 @@
 
 using namespace std;
 using namespace cv;
-const int scale_factor = 1; // this needs to be the same as in the rgb node. change to launch file parameter. 
+const int scale_factor = 8; // this needs to be the same as in the rgb node. change to launch file parameter. 
 // this may not work for all resolutions. this value needs to match the value in astar. retrive from param launch file.
 
 const string windowName = "Visualizer";
@@ -71,10 +71,11 @@ public:
 
 	ros::NodeHandle nh;
 	image_transport::ImageTransport it_nh(nh);
-	pub_viz = it_nh.advertise("/visualization",1);
 	pub_worldMap = it_nh.advertise("/worldMap",1);
 	pub_goal_out = nh.advertise<geometry_msgs::PoseArray>("/goal_pose_out",1);
 	key_cmd_pub = nh.advertise<std_msgs::Int8>("/key_cmd",1);
+	pub_vis1 = it_nh.advertise("/vis1",1);
+	pub_vis2 = it_nh.advertise("/vis2",1);
 
     sub_corners1 = nh.subscribe("corners1",1,&DataProcessor::corners1Callback,this);
     sub_corners2 = nh.subscribe("corners2",1,&DataProcessor::corners2Callback,this);
@@ -107,7 +108,9 @@ public:
     H_cambird = getPerspectiveTransform(undistorted_pts, undistorted_pts);
 	cout << H_camcam << endl;
 	cout << H_cambird << endl;
+	
 
+	
 	// Set each element in history to 0
 	for (int i = 0; i < VEHICLE_POSE_HISTORY_SIZE; i++) {
 	    vehicle_pose_history[i] = Point(0, 0);
@@ -126,25 +129,16 @@ public:
 		return ss.str();
 	}
 
-	void downsampleFrame(Mat frame) {
-		scaledFrame = frame;
-		Size size(scaledFrame.cols * scale_factor , scaledFrame.rows * scale_factor); // this should be 160 x 120 
-		resize(frame,scaledFrame,size);
-		ROS_INFO("Frame Size: %i x %i" , frame.cols, frame.rows);
-
-		ROS_INFO("resizedFrame : %i x %i" , scaledFrame.cols, scaledFrame.rows);
-
+	void downsampleFrame(Mat img) {
+		Size size(img.cols / scale_factor , img.rows / scale_factor); // this should be 160 x 120 
+		resize(img,img,size);
 	}
 
-	void downsampleFrame2(Mat frame2) {
-		scaledFrame2 = frame2;
-		Size size2(scaledFrame2.cols * scale_factor , scaledFrame2.rows * scale_factor); // this should be 160 x 120 
-		resize(frame2,scaledFrame2,size2);
-		ROS_INFO("Frame2 Size : %i x %i" , frame2.cols, frame2.rows);
-
-		ROS_INFO("resizedFrame2 : %i x %i" , scaledFrame2.cols, scaledFrame2.rows);
-
+	void upsampleFrame(Mat img) {
+		Size size(img.cols * scale_factor , img.rows * scale_factor); // this should be 160 x 120 
+		resize(img,img,size);
 	}
+
 
 	void convFac1Callback (const std_msgs::Float64::ConstPtr& conv_fac_msg) 
 	{
@@ -332,6 +326,8 @@ public:
 
 	        // calc camcam H mat
 	        H_camcam = getPerspectiveTransform(corners1_pts,corners2_pts);
+   			ROS_INFO("camcam");
+
 	        cout << H_camcam << endl;
 	    }
 	        
@@ -346,38 +342,62 @@ public:
 	    undistorted_pts[2].y=corners1_pts[0].y+board_h-1;
 	    undistorted_pts[3].y=corners1_pts[0].y+board_h-1;
 
+	    
+
+  //   	undistorted_pts[0].x=0;
+		// undistorted_pts[1].x=board_w-1;
+		// undistorted_pts[2].x=0;
+		// undistorted_pts[3].x=board_w-1;
+		// undistorted_pts[0].y=0;
+		// undistorted_pts[1].y=0;
+		// undistorted_pts[2].y=board_h-1;
+		// undistorted_pts[3].y=board_h-1;
+
 	    //H_cambird = getPerspectiveTransform(corners1_pts, undistorted_pts);
 	    H_cambird = getPerspectiveTransform(undistorted_pts, corners1_pts);
+		H_cambird.at<double>(2,2) = 10;
+
+		ROS_INFO("cambird");
 
 	    cout << H_cambird << endl;
 
 	}
 
 	void updateMap(Mat temp, int ID) {
-	    if (ID > 1) { // ID = 2, HbirdHcamcamOG
-	        warpPerspective(temp , temp, H_camcam, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-    	    warpPerspective(temp , temp, H_cambird, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-	    	Mat worldMaptemp(temp.rows*3,temp.cols*3,temp.type());
-    		worldMaptemp.setTo(Scalar(0));
-    		temp.copyTo(worldMaptemp(Rect(160+(corners1_pts[0].x/scale_factor),120+(corners1_pts[0].y/scale_factor),160,120)));
-    		worldMaptemp = worldMaptemp + worldMap;
-    		worldMaptemp.copyTo(worldMap);
-
-		    drawData(worldMap);
-    		imshow(windowName,worldMap);
-
-	    } else { // ID_num = 1 , HbirdOG
-            warpPerspective(temp , temp, H_cambird, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-    		Mat worldMaptemp(temp.rows*3,temp.cols*3,temp.type());
-    		worldMaptemp.setTo(Scalar(0));
-
-    		temp.copyTo(worldMaptemp(Rect(160,120,160,120)));
-
+    	Mat worldMaptemp(temp.rows*3,temp.cols*3,temp.type(),Scalar(0));
+    	if (worldMap_tic < 1) { //zero out
     		worldMaptemp.copyTo(worldMap);
     	}
+	   	worldMap_tic++;;
+    	//else, for 2 count, add images from ID 1 and 2
+	    if (ID > 1) { // ID = 2, HbirdHcamcamOG
+	        //warpPerspective(temp , temp, H_camcam, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+    	    //warpPerspective(temp , temp, H_cambird, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+    		temp.copyTo(worldMaptemp(Rect(160+(corners1_pts[0].x/scale_factor),120+(corners1_pts[0].y/scale_factor),160,120)));
+    		addWeighted(worldMap,0.5,worldMaptemp,0.5,0.0,worldMap);
+    		//worldMap = worldMaptemp + worldMap;
+    		//worldMaptemp.copyTo(worldMap);
 
+	    } else { // ID_num = 1 , HbirdOG
+	    	//upsampleFrame(temp);
+            warpPerspective(temp , temp, H_cambird, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(255));
+			//downsampleFrame(temp);
+
+    		temp.copyTo(worldMaptemp(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
+            //warpPerspective(worldMaptemp , worldMaptemp, H_cambird, worldMaptemp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(255));
+
+    		addWeighted(worldMap,0.5,worldMaptemp,0.5,0.0,worldMap);
+//    		worldMap = worldMaptemp + worldMap;
+
+    		//worldMaptemp.copyTo(worldMap);
+    	}
+
+    	// publish and reset
     	if (worldMap_tic >= 2) {
     		worldMap_tic = 0;
+		    drawData(worldMap);
+	    	imshow(windowName,worldMap);
+
 	    	std_msgs::Header header;
 	    	header.stamp = ros::Time::now();
 	    	cv_bridge::CvImage worldMap_bridge;
@@ -386,24 +406,29 @@ public:
 	    	worldMap_bridge.toImageMsg(worldMap_msg);
 	    	pub_worldMap.publish(worldMap_msg);
 	   	}
-	   	worldMap_tic++;
+
+
 	}
 
 	void corners1Callback (const geometry_msgs::PoseArray::ConstPtr& corners1_msg) 
 	{
+
 	    corners1_vec.clear();
 	    int size = corners1_msg->poses.size();
 	    for (int i=0;i<size;i++)
 	    {
-	        corners1_vec.push_back(Point((int)corners1_msg->poses[i].position.x,(int)corners1_msg->poses[i].position.y));
+	        corners1_vec.push_back(Point2f(corners1_msg->poses[i].position.x,corners1_msg->poses[i].position.y));
 	        corners1_pts[i] = corners1_vec[i];    
 	    }
+        cout << corners1_vec << endl;
 
 	    getPerspectives();
 	}
 
 	void corners2Callback (const geometry_msgs::PoseArray::ConstPtr& corners2_msg) 
-	{
+	{		
+
+	    
 	    corners2_vec.clear();
 	    int size = corners2_msg->poses.size();
 	    for (int i=0;i<size;i++)
@@ -411,6 +436,7 @@ public:
 	        corners2_vec.push_back(Point((int)corners2_msg->poses[i].position.x,(int)corners2_msg->poses[i].position.y));
 	        corners1_pts[i] = corners1_vec[i];    
 	    }
+        cout << corners2_vec << endl;
 
 	    getPerspectives();
 
@@ -438,13 +464,8 @@ public:
 	    header.stamp = ros::Time::now(); // time
 	    
 	    frame = cv_ptr -> image;
-	    //Mat world_temp(frame.rows*2,frame.cols*2,frame.type());
-	    //frame.copyTo(world_temp(Rect(frame.cols,frame.rows,frame.cols*2,frame.rows*2)));
 
-	    warpPerspective(frame , frame, H_camcam, frame.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-	    warpPerspective(frame , frame, H_cambird, frame.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-
-
+	    //warpPerspective(frame , frame, H_cambird, frame.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 	
 	    // update mouseclick events
 	    if (goal_points.size() > 0 ) 
@@ -453,11 +474,8 @@ public:
 		}
 
 		updateMap(frame,1);
-   	    // draw vizualization on frame
-	    // structure msg
-		
-		downsampleFrame(frame);
 
+		//downsampleFrame(frame);
 
 
 		char k = (char) cv::waitKey(30); //wait for esc key
@@ -471,17 +489,18 @@ public:
 		else if (k==27) // reinitialize background : case 2 and key_cmd int value 2
 		{
 			key_cmd_msg.data = 2; 
-			worldMap.setTo(Scalar(0));
+			ROS_INFO("checkpoint 1");
+
 		}
 		else {key_cmd_msg.data = 0;}
+
 		key_cmd_pub.publish(key_cmd_msg);
 
-        //publish viz
-	    img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, scaledFrame);
-	    img_bridge.toImageMsg(img_msg); // from cv _bridge to sensor_msgs::Image
-	    pub_viz.publish(img_msg); 
-
         //publish MSSP msg 
+
+		img_bridge = cv_bridge::CvImage(header,sensor_msgs::image_encodings::BGR8,frame);
+		img_bridge.toImageMsg(img_msg);
+		pub_vis1.publish(img_msg);
 
 	      counter++;
 	}
@@ -508,16 +527,17 @@ public:
 	    header2.stamp = ros::Time::now(); // time
 	    frame2 = cv_ptr2 -> image;
 
-	    warpPerspective(frame2 , frame2, H_cambird, frame2.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-
-
+		//warpPerspective(frame2 , frame2, H_camcam, frame.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+	    //warpPerspective(frame2 , frame2, H_cambird, frame2.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 
 		ROS_INFO("GROUNDSTATION2 FRAME COLLECTED, size : %i x %i" , frame2.cols, frame2.rows);
 		updateMap(frame2,2);
 
-		downsampleFrame2(frame2);
+		//downsampleFrame2(frame2);
 
-		ROS_INFO("GROUNDSTATION2 FRAME DOWNSAMPLED, size : %i x %i" , scaledFrame2.cols, scaledFrame2.rows);
+		img_bridge2 = cv_bridge::CvImage(header2,sensor_msgs::image_encodings::BGR8,frame2);
+		img_bridge2.toImageMsg(img_msg2);
+		pub_vis2.publish(img_msg2);
 
 	    counter2++;
 	}
@@ -541,8 +561,9 @@ private:
 
 	image_transport::Subscriber sub_rgb1;
 	image_transport::Subscriber sub_rgb2;
-	image_transport::Publisher pub_viz;
 	image_transport::Publisher pub_worldMap;
+	image_transport::Publisher pub_vis1;
+	image_transport::Publisher pub_vis2;
 	ros::Publisher pub_goal_out;
 	ros::Publisher key_cmd_pub;
 
