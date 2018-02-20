@@ -71,32 +71,32 @@ int arm_bool;
 
 void update_target_speed()
 {
- if (arm_bool > 0) 
- {
+   if (arm_bool > 0) 
+   {
 
-      distance_to_target = sqrt(pow(x_vehicle - x_wp, 2) + pow(y_vehicle - y_wp, 2));
-      std_msgs::Float64 target_speed_msg;
+        distance_to_target = sqrt(pow(x_vehicle - x_wp, 2) + pow(y_vehicle - y_wp, 2));
+        std_msgs::Float64 target_speed_msg;
       
-      if (distance_to_target < 100) { // meter?? NEED TO CONVERT FROM PIXELS TO METERS
-          target_speed = 0.8*target_speed*(1 - (1/distance_to_target));
-      } else if (distance_to_target < 40) {
-          target_speed = 0;
-      } else {
-        target_speed = 50.0*conv_fac; // pixels to meter/second    
-      }
+        if (distance_to_target < 100) { // meter?? NEED TO CONVERT FROM PIXELS TO METERS
+            target_speed = 0.8*target_speed*(1 - (1/distance_to_target));
+        } else if (distance_to_target < 40) {
+            target_speed = 0;
+        } else {
+          target_speed = 50.0*conv_fac; // pixels to meter/second    
+        }
 
-      ROS_INFO("distance_to_target: %f , target_speed: %f",  distance_to_target, target_speed);
+        ROS_INFO("distance_to_target: %f , target_speed: %f",  distance_to_target, target_speed);
 
-      target_speed_msg.data = target_speed;
-      target_speed_pub.publish(target_speed_msg);
+        target_speed_msg.data = target_speed;
+        target_speed_pub.publish(target_speed_msg);
 
     } else {
 
-      std_msgs::Float64 target_speed_msg;
-      target_speed = 0.0;
-      target_speed_msg.data = target_speed;
-      ROS_INFO("target_speed: %f", target_speed_msg.data);
-      target_speed_pub.publish(target_speed_msg);
+        std_msgs::Float64 target_speed_msg;
+        target_speed = 0.0;
+        target_speed_msg.data = target_speed;
+        ROS_INFO("target_speed: %f", target_speed_msg.data);
+        target_speed_pub.publish(target_speed_msg);
 
     }
 }
@@ -162,9 +162,7 @@ void armCallback (const std_msgs::Float64::ConstPtr& arm_bool_msg)
 {
     arm_bool = arm_bool_msg -> data;
     ROS_INFO("arm_bool = %i" , arm_bool);
-
     update_target_speed();
-
 }
 
 void convFacCallback (const std_msgs::Float64::ConstPtr& conv_fac_msg) 

@@ -324,21 +324,6 @@ void conv_facRemoteCallback (const std_msgs::Float64::ConstPtr& conv_fac_msg)
 
 }
 
-
-void goalCallback (const geometry_msgs::Pose2D::ConstPtr& goal_pose_msg) 
-{
-    double xtemp, ytemp;
-    xtemp = goal_pose_msg->x;
-    ytemp = goal_pose_msg ->y;
-    //translate to downsampled coordinates
-    xtemp = xtemp / scale_factor;
-    ytemp = ytemp / scale_factor;
-    //xB  = (int)xtemp;
-    //yB = (int)ytemp;
-
-    ROS_INFO("goalCallback: ( %i , %i )",xB,yB);
-}
-
 void goal_outCallback (const geometry_msgs::PoseArray::ConstPtr& goal_out_pose_msg) 
 {
     double xtemp, ytemp;
@@ -372,8 +357,6 @@ void goal_outCallback (const geometry_msgs::PoseArray::ConstPtr& goal_out_pose_m
 	yB = (int)ytemp;
 
     ROS_INFO("goal_outCallback (xB, yB): ( %i , %i ),  subgoal_distance: %f i = %i",xB,yB,euclidean_d,subgoal);
-
-
 
 }
 
@@ -563,6 +546,11 @@ void occupancyGridRemoteCallback (const sensor_msgs::ImageConstPtr& msg)
 	}
 
     gridDownRemote = occupancyGridRemote_ptr -> image;
+
+
+    //update map
+    //publish read frame to check?
+
     //transform image 
     if (ID_num > 1) { // ID = 2, HbirdHcamcamOG
 
@@ -573,6 +561,8 @@ void occupancyGridRemoteCallback (const sensor_msgs::ImageConstPtr& msg)
             warpPerspective(gridDownRemote , gridDownRemote, H_cambird, gridDownRemote.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
 
     }
+
+    // copy occupancy grid pixels to matrix
     for (int x = 1; x <= n/scale_factor; x++)
     {
         for (int y = 1; y<=m/scale_factor; y++)
@@ -586,57 +576,20 @@ void occupancyGridRemoteCallback (const sensor_msgs::ImageConstPtr& msg)
             }
         }
     }
+    //
+    
 }
 
 void getPerspectives() {
-    //corner_tic++;
-    //if (corner_tic >= 2) { //only after both messages are received. 
-      //  corner_tic = 0;
-
-        // calc camcam H mat
-        H_camcam = getPerspectiveTransform(corners1_pts,corners2_pts);
-        H_camcam_inv = H_camcam.inv(DECOMP_SVD);    
-        ROS_INFO("camcam");
-
-        cout << H_camcam << endl;
-    //}
-        
-    // calc cambird H mat
-
-    undistorted_pts[0].x=corners1_pts[0].x;
-    undistorted_pts[1].x=corners1_pts[0].x+board_w-1;
-    undistorted_pts[2].x=corners1_pts[0].x;
-    undistorted_pts[3].x=corners1_pts[0].x+board_w-1;
-    undistorted_pts[0].y=corners1_pts[0].y;
-    undistorted_pts[1].y=corners1_pts[0].y;
-    undistorted_pts[2].y=corners1_pts[0].y+board_h-1;
-    undistorted_pts[3].y=corners1_pts[0].y+board_h-1;
-
-
-
-//    undistorted_pts[0].x=0;
-    // undistorted_pts[1].x=board_w-1;
-    // undistorted_pts[2].x=0;
-    // undistorted_pts[3].x=board_w-1;
-    // undistorted_pts[0].y=0;
-    // undistorted_pts[1].y=0;
-    // undistorted_pts[2].y=board_h-1;
-    // undistorted_pts[3].y=board_h-1;
-
-    //H_cambird = getPerspectiveTransform(corners1_pts, undistorted_pts);
-    //H_cambird = getPerspectiveTransform(undistorted_pts, corners1_pts);
-    //H_cambird.at<double>(2,2) = 10;
-
-    //ROS_INFO("cambird");
-
-    //cout << H_cambird << endl;
-
+    H_camcam = getPerspectiveTransform(corners1_pts,corners2_pts);
+    H_camcam_inv = H_camcam.inv(DECOMP_SVD);    
+    ROS_INFO("camcam");
+    cout << H_camcam << endl;
 }
 
 
 void corners1Callback (const geometry_msgs::PoseArray::ConstPtr& corners1_msg) 
 {
-
     corners1_vec.clear();
     int size = corners1_msg->poses.size();
     for (int i=0;i<size;i++)
@@ -644,6 +597,7 @@ void corners1Callback (const geometry_msgs::PoseArray::ConstPtr& corners1_msg)
         corners1_vec.push_back(Point2f(corners1_msg->poses[i].position.x,corners1_msg->poses[i].position.y));
         corners1_pts[i] = corners1_vec[i];    
     }
+    
     ROS_INFO("corners1");
     cout << corners1_vec << endl;
 
@@ -652,8 +606,6 @@ void corners1Callback (const geometry_msgs::PoseArray::ConstPtr& corners1_msg)
 
 void corners2Callback (const geometry_msgs::PoseArray::ConstPtr& corners2_msg) 
 {       
-
-    
     corners2_vec.clear();
     int size = corners2_msg->poses.size();
     for (int i=0;i<size;i++)
@@ -667,8 +619,6 @@ void corners2Callback (const geometry_msgs::PoseArray::ConstPtr& corners2_msg)
 
     getPerspectives();
 
-
-
     for (int n=0;n<=3; n++) {
 
         float x = H_camcam_inv.at<double>(0,0) * corners2_vec[n].x + H_camcam_inv.at<double>(0,1) * corners2_vec[n].y + H_camcam_inv.at<double>(0,2);
@@ -676,9 +626,7 @@ void corners2Callback (const geometry_msgs::PoseArray::ConstPtr& corners2_msg)
         float w = H_camcam_inv.at<double>(2,0) * corners2_vec[n].x + H_camcam_inv.at<double>(2,1) * corners2_vec[n].y + H_camcam_inv.at<double>(2,2);
 
         corners2_pts_camcam[n]=Point(x/w,y/w);
-    
     }
-
 }
 
 
@@ -749,7 +697,6 @@ int main(int argc, char **argv)
     ros::Subscriber sub_corners1 = node.subscribe("corners1",1,&corners1Callback);
     ros::Subscriber sub_corners2 = node.subscribe("corners2",1,&corners2Callback);
     ros::Subscriber sub_vehicle = node.subscribe(vehicle_pose_s,2, &vehicleCallback);
-    //ros::Subscriber sub_goal = node.subscribe("/goal_pose",2, &goalCallback);
     ros::Subscriber sub_goal_out = node.subscribe("goal_pose_out",2, &goal_outCallback);
     ros::Subscriber sub_conv_facLocal = node.subscribe(conv_facLocal,2, &conv_facLocalCallback);
     ros::Subscriber sub_conv_facRemote = node.subscribe(conv_facRemote,2, &conv_facRemoteCallback);
