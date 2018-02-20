@@ -37,7 +37,7 @@
 //msg file headers
 #define LOS_RADIUS 100 //currently in pixels
 #define HEADING_LINE_THICKNESS 2
-#define VEHICLE_POSE_HISTORY_SIZE 150
+#define VEHICLE_POSE_HISTORY_SIZE 100
 
 using namespace std;
 using namespace cv;
@@ -342,8 +342,8 @@ public:
 
 	void update_pose_history(){
         // Save current location to history
+		cout << vehicle_pose_history_pointer << endl;
         vehicle_pose_history[vehicle_pose_history_pointer] = vehicle_pose;
-        
         // Update circular array pointer
         vehicle_pose_history_pointer = (vehicle_pose_history_pointer + 1) % VEHICLE_POSE_HISTORY_SIZE;
 	}
@@ -506,7 +506,7 @@ public:
 	  else if (name=="vehicle") {
 		objects_yellow = objects_temp;
 
-		vehicle_pose = Point(x,y);
+		vehicle_pose = Point((int)x,(int)y);
 	  }
 	  else if (name=="red") {
 		objects_red = objects_temp;
@@ -689,7 +689,7 @@ public:
 
 			if (name=="vehicle") { // yellow vehicle state
 
-				vehicle_pose = Point(x, y);
+				vehicle_pose = Point((int)x, (int)y);
 		
 				geometry_msgs::Pose2D vehicle_pose_msg;
 
@@ -1019,7 +1019,7 @@ public:
 				// update pointer
 				cout << vehicle_pose_history << "  " << vehicle_pose << endl;
 
-				//update_pose_history();
+				update_pose_history();
 				
 				detectObjects(occupancyGrid,objectFeed, " ");
 			
@@ -1295,7 +1295,7 @@ private:
 
 	// vehicle location history
 	Point * vehicle_pose_history = new Point[VEHICLE_POSE_HISTORY_SIZE];
-	int vehicle_pose_history_pointer;
+	int vehicle_pose_history_pointer = 0;
 
 	// vizualization waitkey cmds
 	int key_cmd = 0;

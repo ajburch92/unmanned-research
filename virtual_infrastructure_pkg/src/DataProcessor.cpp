@@ -549,7 +549,25 @@ public:
 		    upsampleFrame(worldMap);
 	    	imshow(windowName,worldMap);
 
-	    	std_msgs::Header header;
+			char k = (char) cv::waitKey(30); //wait for esc key
+
+			std_msgs::Int8 key_cmd_msg;
+			//if(k == 27) break;
+			if(k== ' ')  // start tracking : case 1 and key_cmd int value 1
+			{
+				key_cmd_msg.data = 1; 
+			} 
+			else if (k==27) // reinitialize background : case 2 and key_cmd int value 2
+			{
+				key_cmd_msg.data = 2; 
+				ROS_INFO("checkpoint 1");
+
+			}
+			else {key_cmd_msg.data = 0;}
+
+			key_cmd_pub.publish(key_cmd_msg);
+
+		   	std_msgs::Header header;
 	    	header.stamp = ros::Time::now();
 	    	cv_bridge::CvImage worldMap_bridge;
 	    	sensor_msgs::Image worldMap_msg;
@@ -657,23 +675,6 @@ public:
 		//downsampleFrame(frame);
 
 
-		char k = (char) cv::waitKey(30); //wait for esc key
-
-		std_msgs::Int8 key_cmd_msg;
-		//if(k == 27) break;
-		if(k== ' ')  // start tracking : case 1 and key_cmd int value 1
-		{
-			key_cmd_msg.data = 1; 
-		} 
-		else if (k==27) // reinitialize background : case 2 and key_cmd int value 2
-		{
-			key_cmd_msg.data = 2; 
-			ROS_INFO("checkpoint 1");
-
-		}
-		else {key_cmd_msg.data = 0;}
-
-		key_cmd_pub.publish(key_cmd_msg);
 
         //publish MSSP msg 
 
