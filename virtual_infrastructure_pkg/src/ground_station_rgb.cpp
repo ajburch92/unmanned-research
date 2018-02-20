@@ -73,6 +73,8 @@ public:
 
 		string image_rect_color = "/camera" + s + "/image_rect_color" ;
 		string ground_station_rgb = "/ground_station_rgb" + s ; 
+		string ground_station_rgb_HD = "/ground_station_rgb_HD" + s ; 
+
 		string conv_fac = "/conv_fac" + s ;
 		string occupancyGridLow = "/occupancyGridLow" + s ;
 		string occupancyGridHigh = "/occupancyGridHigh" + s ;
@@ -83,6 +85,8 @@ public:
 
 		rgb_sub_ = it_rgb.subscribe(image_rect_color,1, &RGBImageProcessor::rgbFeedCallback, this); // use image_rect
 		rgb_pub_ = it_rgb.advertise(ground_station_rgb,1);
+		rgb_pub_HD = it_rgb.advertise(ground_station_rgb_HD,1);
+
 		conv_fac_pub = nh_rgb.advertise<std_msgs::Float64>(conv_fac,2);
 		occupancyGridLow_pub = it_rgb.advertise(occupancyGridLow , 1);
 		occupancyGridHigh_pub = it_rgb.advertise(occupancyGridHigh , 1);
@@ -435,6 +439,7 @@ public:
 		vector<Vec4i> hierarchy_temp;          
 		vector <Object> objects_temp; 
 		double max_contour_index;
+		double x,y;
 		Mat temp;
 
 	  // cp to temporary
@@ -457,7 +462,11 @@ public:
 	      //for (int index = 0; index >= 0; index = hierarchy_temp[index][0]) //for each object
 	      //{
 	        Moments moment = moments((cv::Mat)contours_temp[index]); //moments method
-	        double area = moment.m00;
+   			double area = moment.m00;
+
+
+	        x = (double)moment.m10/area;       
+			y = (double)moment.m01/area; 
 
 	        if(area>MIN_OBJECT_AREA)
 	        {
@@ -496,6 +505,8 @@ public:
 	  }
 	  else if (name=="vehicle") {
 		objects_yellow = objects_temp;
+
+		vehicle_pose = Point(x,y);
 	  }
 	  else if (name=="red") {
 		objects_red = objects_temp;
@@ -532,7 +543,7 @@ public:
 		Mat temp;
 		threshold.copyTo(temp);
 		findContours(temp,contours,hierarchy,CV_RETR_CCOMP,CV_CHAIN_APPROX_SIMPLE );
-
+		cout << "check1" << endl;
 		bool objectFound = false;
 	  	int x_obj, y_obj, x_temp, y_temp, num_objects;
 		float dist_temp, xdot_obj, ydot_obj;
@@ -588,36 +599,36 @@ public:
           		objects.at(minPos).setYPos(y_obj);
 
           		// Check where vehicle is in frame / world
-          		overlapState(x_obj, y_obj);
+          		//overlapState(x_obj, y_obj);
 
-          		if (overlap_state > 0) { // is in overlapping region
+          		//if (overlap_state > 0) { // is in overlapping region
 
-          			if (waypoint_proj_perc < 0.50) { // not heading towards other GS FOV
-		  				local_bool = 1;
-          				// calculate confidence
-			  			confidence = 0.9;		
+       //    			if (waypoint_proj_perc < 0.50) { // not heading towards other GS FOV
+		  			// 	local_bool = 1;
+       //    				// calculate confidence
+			  		// 	confidence = 0.9;		
 
-          			} else {
-          				if (trajectory_state >= 3) { // trajectory is ready to handoff			
-							local_bool = 0;
-          					// calc confidence
-				  			confidence = 0.2;
+       //    			} else {
+       //    				if (trajectory_state >= 3) { // trajectory is ready to handoff			
+							// local_bool = 0;
+       //    					// calc confidence
+				  	// 		confidence = 0.2;
 
-          				} else { // remote trajectory not ready
+       //    				} else { // remote trajectory not ready
 
-          					local_bool = 1;
-          					// calculate confidence
-				  			confidence = 0.8;
+       //    					local_bool = 1;
+       //    					// calculate confidence
+				  	// 		confidence = 0.8;
 
-          				}
-          			}
-          		} else { // VEHICLE FOUND : overlap_state = 0, not in an overlapping area
+       //    				}
+       //    			}
+          		//} else { // VEHICLE FOUND : overlap_state = 0, not in an overlapping area
 
 		  			local_bool = 1;
           			// calc confidence
 		  			confidence = 1;
                                
-          		}
+          		//}
 
           	} else { // VEHICLE NOT FOUND : object too far away 
           		
@@ -713,10 +724,12 @@ public:
 	void rgbFeedCallback(const sensor_msgs::ImageConstPtr& msg)
 	{
 		cv_bridge::CvImage img_bridge;
+		cv_bridge::CvImage img_bridge_HD;
 		cv_bridge::CvImage occupancyHigh_bridge;
 		cv_bridge::CvImage occupancyLow_bridge;
 
 		sensor_msgs::Image img_msg;
+		sensor_msgs::Image img_msg_HD;
 		sensor_msgs::Image occupancyGridLow_msg;
 		sensor_msgs::Image occupancyGridHigh_msg;
 
@@ -1004,10 +1017,12 @@ public:
 			else // tracking mode turned on
 			{
 				// update pointer
-				update_pose_history();
+				cout << vehicle_pose_history << "  " << vehicle_pose << endl;
 
+				//update_pose_history();
+				
 				detectObjects(occupancyGrid,objectFeed, " ");
-
+			
 				//trackObjects(BLUEthreshold,objectFeed,objects_blue,"goal");
 				//trackObjects(GREENthreshold,objectFeed,objects_green,"green");
 				trackObjects(YELLOWthreshold,objectFeed,objects_yellow,"vehicle");
@@ -1062,6 +1077,10 @@ public:
 				img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, frameoutDown);
 				img_bridge.toImageMsg(img_msg); // from cv _bridge to sensor_msgs::Image
 				rgb_pub_.publish(img_msg); 
+
+				img_bridge_HD = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, objectFeed);
+				img_bridge_HD.toImageMsg(img_msg_HD); // from cv _bridge to sensor_msgs::Image
+				rgb_pub_HD.publish(img_msg_HD); 
 			}
 			// send high res occupancy grid
 			occupancyHigh_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8,gridDownHigh);
@@ -1247,6 +1266,7 @@ private:
 	Mat background;
 	image_transport::Subscriber rgb_sub_;
 	image_transport::Publisher rgb_pub_;
+	image_transport::Publisher rgb_pub_HD;
 	image_transport::Publisher occupancyGridLow_pub;
 	image_transport::Publisher occupancyGridHigh_pub;
 

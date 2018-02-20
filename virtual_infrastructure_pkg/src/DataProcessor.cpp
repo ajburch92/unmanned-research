@@ -35,7 +35,7 @@
 #include <algorithm>
 //msg file headers
 
-#define LOS_RADIUS 100 //currently in pixels
+#define LOS_RADIUS 10 //currently in pixels
 #define HEADING_LINE_THICKNESS 2
 #define VEHICLE_POSE_HISTORY_SIZE 20
 
@@ -53,7 +53,7 @@ void onMouse( int evt, int x, int y, int flags, void *param)
 	if (evt == CV_EVENT_LBUTTONDOWN) 
 	{
 		vector<Point>* ptPtr = (vector<Point>*)param;
-		ptPtr->push_back(Point(x,y) * scale_factor);
+		ptPtr->push_back(Point(x/2,y/2));
 		ROS_INFO("left click registered");
 
 
@@ -139,8 +139,8 @@ public:
 		resize(img,img,size);
 	}
 
-	void upsampleFrame(Mat img) {
-		Size size(img.cols * scale_factor , img.rows * scale_factor); // this should be 160 x 120 
+	void upsampleFrame(Mat &img) {
+		Size size(img.cols * 2 , img.rows * 2); // this should be 160 x 120 
 		resize(img,img,size);
 	}
 
@@ -179,38 +179,57 @@ public:
 	void vehicle1Callback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
 	{
 		double xtemp, ytemp;
-	    xtemp = vehicle_pose_msg->x;
-	    ytemp = vehicle_pose_msg->y;
+	    xtemp = vehicle_pose_msg->x / scale_factor + 160;
+	    ytemp = vehicle_pose_msg->y / scale_factor + 120;
 	    heading_angle  = vehicle_pose_msg->theta;
 	    Point2f vehicle_pose_temp;
 	    int ID_num = 1;
 	    // transform coordinates
 	    if (ID_num > 1) { // ID = 2, HbirdHcamcamOG
-	                float x = H_camcam.at<double>(0,0) * xtemp + H_camcam.at<double>(0,1) * ytemp + H_camcam.at<double>(0,2);
-	                float y = H_camcam.at<double>(1,0) * xtemp + H_camcam.at<double>(1,1) * ytemp + H_camcam.at<double>(1,2);
-	                float w = H_camcam.at<double>(2,0) * xtemp + H_camcam.at<double>(2,1) * ytemp + H_camcam.at<double>(2,2);
+	                float x = H_camcam_inv.at<double>(0,0) * xtemp + H_camcam_inv.at<double>(0,1) * ytemp + H_camcam_inv.at<double>(0,2);
+	                float y = H_camcam_inv.at<double>(1,0) * xtemp + H_camcam_inv.at<double>(1,1) * ytemp + H_camcam_inv.at<double>(1,2);
+	                float w = H_camcam_inv.at<double>(2,0) * xtemp + H_camcam_inv.at<double>(2,1) * ytemp + H_camcam_inv.at<double>(2,2);
 
 	                vehicle_pose_temp=Point(x/w,y/w);
 
-	                x = H_cambird.at<double>(0,0) * vehicle_pose_temp.x + H_cambird.at<double>(0,1) * vehicle_pose_temp.y + H_cambird.at<double>(0,2);
-	                y = H_cambird.at<double>(1,0) * vehicle_pose_temp.x + H_cambird.at<double>(1,1) * vehicle_pose_temp.y + H_cambird.at<double>(1,2);
-	                w = H_cambird.at<double>(2,0) * vehicle_pose_temp.x + H_cambird.at<double>(2,1) * vehicle_pose_temp.y + H_cambird.at<double>(2,2);
-
-	                vehicle_pose_temp=Point(x/w,y/w);
 
 	    } else { // ID_num = 0 , HbirdOG
 
-	                float x = H_cambird.at<double>(0,0) * xtemp + H_cambird.at<double>(0,1) * ytemp + H_cambird.at<double>(0,2);
-	                float y = H_cambird.at<double>(1,0) * xtemp + H_cambird.at<double>(1,1) * ytemp + H_cambird.at<double>(1,2);
-	                float w = H_cambird.at<double>(2,0) * xtemp + H_cambird.at<double>(2,1) * ytemp + H_cambird.at<double>(2,2);
-
-	                vehicle_pose_temp=Point(x/w,y/w);
+	                vehicle_pose_temp=Point(xtemp,ytemp);
 
 	    }
 	    vehicle_pose.x  = (int)vehicle_pose_temp.x;
 	    vehicle_pose.y = (int)vehicle_pose_temp.y;
 
 	    ROS_INFO("vehicleCallback: ( %i , %i )",vehicle_pose.x,vehicle_pose.y);
+	}
+
+	void vehicle2Callback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
+	{
+		double xtemp, ytemp;
+	    xtemp = vehicle_pose_msg->x / scale_factor + 160;
+	    ytemp = vehicle_pose_msg->y / scale_factor + 120;
+	    heading_angle2  = vehicle_pose_msg->theta;
+	    Point2f vehicle_pose_temp;
+	    int ID_num = 2;
+	    // transform coordinates
+	    if (ID_num > 1) { // ID = 2, HbirdHcamcamOG
+	                float x = H_camcam_inv.at<double>(0,0) * xtemp + H_camcam_inv.at<double>(0,1) * ytemp + H_camcam_inv.at<double>(0,2);
+	                float y = H_camcam_inv.at<double>(1,0) * xtemp + H_camcam_inv.at<double>(1,1) * ytemp + H_camcam_inv.at<double>(1,2);
+	                float w = H_camcam_inv.at<double>(2,0) * xtemp + H_camcam_inv.at<double>(2,1) * ytemp + H_camcam_inv.at<double>(2,2);
+
+	                vehicle_pose_temp=Point(x/w,y/w);
+
+
+	    } else { // ID_num = 0 , HbirdOG
+
+	                vehicle_pose_temp=Point(xtemp,ytemp);
+
+	    }
+	    vehicle_pose2.x  = (int)vehicle_pose_temp.x;
+	    vehicle_pose2.y = (int)vehicle_pose_temp.y;
+
+	    ROS_INFO("vehicleCallback: ( %i , %i )",vehicle_pose2.x,vehicle_pose2.y);
 	}
 
 	/*	void convFac2Callback (const std_msgs::Float64::ConstPtr& conv_fac_msg) 
@@ -270,8 +289,8 @@ public:
 
 		for (int i=0; i<size; i++) 
 		{
-			goal_pose_out_msg.position.x = goal_points[i].x;
-	        goal_pose_out_msg.position.y = goal_points[i].y;
+			goal_pose_out_msg.position.x = goal_points[i].x*scale_factor;
+	        goal_pose_out_msg.position.y = goal_points[i].y*scale_factor;
 
 	        poseArray.poses.push_back(goal_pose_out_msg);
 
@@ -295,6 +314,12 @@ public:
 	    vehicle_heading.x = (int) round(vehicle_pose.x + LOS_RADIUS * cos(heading_angle));
 	    vehicle_heading.y = (int) round(vehicle_pose.y + LOS_RADIUS * sin(heading_angle));		    
 	    line(frame, vehicle_pose, vehicle_heading, Scalar(0, 128, 255), HEADING_LINE_THICKNESS, 8, 0);
+
+	    circle(frame,vehicle_pose2,LOS_RADIUS, Scalar(102, 178, 255));
+
+	    vehicle_heading2.x = (int) round(vehicle_pose2.x + LOS_RADIUS * cos(heading_angle));
+	    vehicle_heading2.y = (int) round(vehicle_pose2.y + LOS_RADIUS * sin(heading_angle));		    
+	    line(frame, vehicle_pose2, vehicle_heading2, Scalar(0, 128, 255), HEADING_LINE_THICKNESS, 8, 0);
 		
 		int size = vector_wp.size();
 		ROS_INFO("wp vector size = %i",size);
@@ -309,7 +334,7 @@ public:
 		{
 			for (int j = 0; j < goal_points.size(); j++)
 			{
-				circle(frame,goal_points[j], 2, goal_color,10);
+				circle(frame,goal_points[j], 2, goal_color,6);
 			}
 
 		}
@@ -322,28 +347,46 @@ public:
 	    target_angle_endpoint.y = (int) round(vehicle_pose.y + LOS_RADIUS * sin(target_angle));		    
 	    line(frame, vehicle_pose, target_angle_endpoint, Scalar(255, 128, 0), HEADING_LINE_THICKNESS, 8, 0);
 
+   		Point target_angle_endpoint2;
+	    target_angle_endpoint2.x = (int) round(vehicle_pose2.x + LOS_RADIUS * cos(target_angle2));
+	    target_angle_endpoint2.y = (int) round(vehicle_pose2.y + LOS_RADIUS * sin(target_angle2));		    
+	    line(frame, vehicle_pose2, target_angle_endpoint2, Scalar(255, 128, 0), HEADING_LINE_THICKNESS, 8, 0);
+
 	   	circle(frame, Point(160+corners1_pts[0].x/scale_factor,120+corners1_pts[0].y/scale_factor), 2, Scalar(255,0,0),1);
 	   	circle(frame, Point(160+corners1_pts[1].x/scale_factor,120+corners1_pts[1].y/scale_factor), 2, Scalar(0,255,0),1);
 	   	circle(frame, Point(160+corners1_pts[2].x/scale_factor,120+corners1_pts[2].y/scale_factor), 2, Scalar(0,0,255),1);
 	   	circle(frame, Point(160+corners1_pts[3].x/scale_factor,120+corners1_pts[3].y/scale_factor), 2, Scalar(0,255,255),1);
 
+	   	circle(frame, Point(160+corners2_pts[0].x/scale_factor,120+corners2_pts[0].y/scale_factor), 2, Scalar(100,0,0),1);
+	   	circle(frame, Point(160+corners2_pts[1].x/scale_factor,120+corners2_pts[1].y/scale_factor), 2, Scalar(0,100,0),1);
+	   	circle(frame, Point(160+corners2_pts[2].x/scale_factor,120+corners2_pts[2].y/scale_factor), 2, Scalar(0,0,100),1);
+	   	circle(frame, Point(160+corners2_pts[3].x/scale_factor,120+corners2_pts[3].y/scale_factor), 2, Scalar(0,100,100),1);
+
+	   	circle(frame, Point(160+corners2_pts_camcam[0].x/scale_factor,120+corners2_pts_camcam[0].y/scale_factor), 4, Scalar(200,0,0),1);
+	   	circle(frame, Point(160+corners2_pts_camcam[1].x/scale_factor,120+corners2_pts_camcam[1].y/scale_factor), 4, Scalar(0,200,0),1);
+	   	circle(frame, Point(160+corners2_pts_camcam[2].x/scale_factor,120+corners2_pts_camcam[2].y/scale_factor), 4, Scalar(0,0,200),1);
+	   	circle(frame, Point(160+corners2_pts_camcam[3].x/scale_factor,120+corners2_pts_camcam[3].y/scale_factor), 4, Scalar(0,200,200),1);
+/*
+/*
 	   	circle(frame, Point(160+corners1_pts[0].x/scale_factor-corners2_pts[0].x/scale_factor,120+corners1_pts[0].y/scale_factor - corners2_pts[0].y/scale_factor), 4, Scalar(255,0,0),1);
 	   	circle(frame, Point(160+corners1_pts[1].x/scale_factor-corners2_pts[1].x/scale_factor,120+corners1_pts[1].y/scale_factor - corners2_pts[1].y/scale_factor), 4, Scalar(255,0,0),1);
 	   	circle(frame, Point(160+corners1_pts[2].x/scale_factor-corners2_pts[2].x/scale_factor,120+corners1_pts[2].y/scale_factor - corners2_pts[2].y/scale_factor), 4, Scalar(255,0,0),1);
 	   	circle(frame, Point(160+corners1_pts[3].x/scale_factor-corners2_pts[3].x/scale_factor,120+corners1_pts[3].y/scale_factor - corners2_pts[3].y/scale_factor), 4, Scalar(255,0,0),1);
+*/
 	}
 
 	void getPerspectives() {
-	    corner_tic++;
-	    if (corner_tic >= 2) { //only after both messages are received. 
-	        corner_tic = 0;
+	    //corner_tic++;
+	    //if (corner_tic >= 2) { //only after both messages are received. 
+	      //  corner_tic = 0;
 
 	        // calc camcam H mat
 	        H_camcam = getPerspectiveTransform(corners1_pts,corners2_pts);
+			H_camcam_inv = H_camcam.inv(DECOMP_SVD);	
    			ROS_INFO("camcam");
 
 	        cout << H_camcam << endl;
-	    }
+	    //}
 	        
 	    // calc cambird H mat
 
@@ -368,12 +411,12 @@ public:
 		// undistorted_pts[3].y=board_h-1;
 
 	    //H_cambird = getPerspectiveTransform(corners1_pts, undistorted_pts);
-	    H_cambird = getPerspectiveTransform(undistorted_pts, corners1_pts);
-		H_cambird.at<double>(2,2) = 10;
+	    //H_cambird = getPerspectiveTransform(undistorted_pts, corners1_pts);
+		//H_cambird.at<double>(2,2) = 10;
 
-		ROS_INFO("cambird");
+		//ROS_INFO("cambird");
 
-	    cout << H_cambird << endl;
+	    //cout << H_cambird << endl;
 
 	}
 
@@ -460,32 +503,39 @@ public:
 
 	// }
 
-	void updateMap(Mat temp, int ID) {
+	void updateMap(Mat &temp, int ID) {
     	Mat worldMaptemp1(temp.rows*3,temp.cols*3,temp.type(),Scalar(0));
     	Mat worldMaptemp2(temp.rows*3,temp.cols*3,temp.type(),Scalar(0));
     	if (counter < 1) { //zero out
     		worldMaptemp1.copyTo(worldMap);
+    		worldMap.copyTo(worldMap1);
+    		worldMap.copyTo(worldMap2);
     	}
 	   	worldMap_tic++;;
     	//else, for 2 count, add images from ID 1 and 2
 	    if (ID > 1) { // ID = 2, HbirdHcamcamOG
 	        warpPerspective(temp , temp, H_camcam, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+    	    
+    	    cout << "tranform performed" << endl; 
     	    //warpPerspective(temp , temp, H_cambird, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-    		temp.copyTo(worldMaptemp1(Rect(temp.cols+(((int)(corners1_pts[0].x/scale_factor))-((int)(corners2_pts[0].x/scale_factor))),temp.rows+((int)(corners1_pts[0].y/scale_factor)-((int)(corners2_pts[0].y/scale_factor))),160,120)));
-    		addWeighted(worldMap,0.5,worldMaptemp1,0.5,0.0,worldMap);
+	   		temp.copyTo(worldMaptemp1(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
+
+    		//temp.copyTo(worldMaptemp1(Rect(temp.cols+(((int)(corners1_pts[0].x/scale_factor))-((int)(corners2_pts[0].x/scale_factor))),temp.rows+((int)(corners1_pts[0].y/scale_factor)-((int)(corners2_pts[0].y/scale_factor))),160,120)));
+    
+    		addWeighted(worldMap1,0.5,worldMaptemp1,0.5,0.0,worldMap1);
     		//worldMap = worldMaptemp + worldMap;
     		//worldMaptemp.copyTo(worldMap);
 
 	    } else { // ID_num = 1 , HbirdOG
-	    	upsampleFrame(temp);
+	    	//upsampleFrame(temp);
 
             //warpPerspective(temp , temp, H_cambird, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(255));
-			downsampleFrame(temp);
+			//downsampleFrame(temp);
 
     		temp.copyTo(worldMaptemp2(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
             //warpPerspective(worldMaptemp , worldMaptemp, H_cambird, worldMaptemp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(255));
 
-    		addWeighted(worldMap,0.5,worldMaptemp2,0.5,0.0,worldMap);
+    		addWeighted(worldMap2,0.5,worldMaptemp2,0.5,0.0,worldMap2);
 //    		worldMap = worldMaptemp + worldMap;
 
     		//worldMaptemp.copyTo(worldMap);
@@ -494,7 +544,9 @@ public:
     	// publish and reset
     	if (worldMap_tic >= 2) {
     		worldMap_tic = 0;
+    		addWeighted(worldMap1,0.5,worldMap2,0.5,0.0,worldMap);
 		    drawData(worldMap);
+		    upsampleFrame(worldMap);
 	    	imshow(windowName,worldMap);
 
 	    	std_msgs::Header header;
@@ -554,6 +606,18 @@ public:
         cout << corners2_vec << endl;
 
 	    getPerspectives();
+
+
+
+		for (int n=0;n<=3; n++) {
+
+	        float x = H_camcam_inv.at<double>(0,0) * corners2_vec[n].x + H_camcam_inv.at<double>(0,1) * corners2_vec[n].y + H_camcam_inv.at<double>(0,2);
+	        float y = H_camcam_inv.at<double>(1,0) * corners2_vec[n].x + H_camcam_inv.at<double>(1,1) * corners2_vec[n].y + H_camcam_inv.at<double>(1,2);
+	        float w = H_camcam_inv.at<double>(2,0) * corners2_vec[n].x + H_camcam_inv.at<double>(2,1) * corners2_vec[n].y + H_camcam_inv.at<double>(2,2);
+
+	        corners2_pts_camcam[n]=Point(x/w,y/w);
+		
+		}
 
 	}
 	
@@ -617,7 +681,7 @@ public:
 		img_bridge.toImageMsg(img_msg);
 		pub_vis1.publish(img_msg);
 
-	      counter++;
+	    counter++;
 	}
 	
 	void rgbFeed2Callback(const sensor_msgs::ImageConstPtr& msg2)
@@ -631,9 +695,9 @@ public:
 		{
 			cv_ptr2  = cv_bridge::toCvCopy(msg2,sensor_msgs::image_encodings::BGR8);
 		}
-		catch (cv_bridge::Exception& e)
+		catch (cv_bridge::Exception& e2)
 		{
-			ROS_INFO("cv_bridge exception: %s", e.what());
+			ROS_INFO("cv_bridge exception: %s", e2.what());
 			return;
 		}
 
@@ -669,7 +733,10 @@ private:
 	Mat frame;
 	Mat frame2;
 	Mat worldMap;
+	Mat worldMap1;
+	Mat worldMap2;
 
+	Mat H_camcam_inv;
 
 	//astar Params
 	int astar_size = 150; // change to length of car
@@ -701,6 +768,8 @@ private:
 	vector<Point> vector_wp;
 
 	double target_angle = 0;
+	double target_angle2=0;
+	double heading_angle2=0;
 	double heading_angle = 0;
 
 	// vehicle location history
@@ -714,10 +783,15 @@ private:
 	int scaledFrame_width;
 
 	Point vehicle_pose;
+	Point vehicle_pose2;
 	Point goal_pose;
 	Point vehicle_heading;
+	Point vehicle_heading2;
 
 	vector<Point2f> corners2_vec;
+	
+	Point2f corners2_pts_camcam[4];
+
 	vector<Point2f> corners1_vec;
 	Point2f undistorted_pts[4];
 	Point2f corners1_pts[4];

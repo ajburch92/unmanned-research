@@ -45,12 +45,17 @@ public:
 
 		ros::NodeHandle nh_odomp("~");
 	    nh_odomp.param("ID_num",ID_num,0);
-		//ID_num = 1;
+  
+		stringstream ss;
+		ss << ID_num;
+		string s;
+		s = ss.str();
 
+		string vehicle_odom = "/vehicle_odom" + s ;
 
 		vehicle_pose1_sub = nh_odom.subscribe("vehicle_pose1",2, &Odom::position1Callback, this);
 		vehicle_pose2_sub = nh_odom.subscribe("vehicle_pose2",2, &Odom::position2Callback, this);
-		odom_pub = nh_odom.advertise<nav_msgs::Odometry>("vehicle_odom", 2);
+		odom_pub = nh_odom.advertise<nav_msgs::Odometry>(vehicle_odom, 2);
     	sub_corners1 = nh_odom.subscribe("corners1",1,&Odom::corners1Callback,this);
     	sub_corners2 = nh_odom.subscribe("corners2",1,&Odom::corners2Callback,this);
        	sub_conf1 = nh_odom.subscribe("confidence1",1,&Odom::confidence1Callback,this);
@@ -80,14 +85,17 @@ public:
 	}
 
 	void getPerspectives() {
-	    corner_tic++;
-	    if (corner_tic >= 2) { //only after both messages are received. 
-	        corner_tic = 0;
+	    //corner_tic++;
+	    //if (corner_tic >= 2) { //only after both messages are received. 
+	      //  corner_tic = 0;
 
 	        // calc camcam H mat
 	        H_camcam = getPerspectiveTransform(corners1_pts,corners2_pts);
+			H_camcam_inv = H_camcam.inv(DECOMP_SVD);	
+   			ROS_INFO("camcam");
+
 	        cout << H_camcam << endl;
-	    }
+	    //}
 	        
 	    // calc cambird H mat
 
@@ -100,12 +108,28 @@ public:
 	    undistorted_pts[2].y=corners1_pts[0].y+board_h-1;
 	    undistorted_pts[3].y=corners1_pts[0].y+board_h-1;
 
-	    //H_cambird = getPerspectiveTransform(corners1_pts, undistorted_pts);
-	    H_cambird = getPerspectiveTransform(undistorted_pts, corners1_pts);
 
-	    cout << H_cambird << endl;
+
+  //   	undistorted_pts[0].x=0;
+		// undistorted_pts[1].x=board_w-1;
+		// undistorted_pts[2].x=0;
+		// undistorted_pts[3].x=board_w-1;
+		// undistorted_pts[0].y=0;
+		// undistorted_pts[1].y=0;
+		// undistorted_pts[2].y=board_h-1;
+		// undistorted_pts[3].y=board_h-1;
+
+	    //H_cambird = getPerspectiveTransform(corners1_pts, undistorted_pts);
+	    //H_cambird = getPerspectiveTransform(undistorted_pts, corners1_pts);
+		//H_cambird.at<double>(2,2) = 10;
+
+		//ROS_INFO("cambird");
+
+	    //cout << H_cambird << endl;
 
 	}
+
+
 
 	void confidence1Callback (const std_msgs::Float64::ConstPtr& confidence1_msg) 
 	{
@@ -134,20 +158,38 @@ public:
 	    getPerspectives();
 	}
 
+
+
 	void corners2Callback (const geometry_msgs::PoseArray::ConstPtr& corners2_msg) 
-	{
+	{		
+
+	    
 	    corners2_vec.clear();
 	    int size = corners2_msg->poses.size();
 	    for (int i=0;i<size;i++)
 	    {
 	        corners2_vec.push_back(Point((int)corners2_msg->poses[i].position.x,(int)corners2_msg->poses[i].position.y));
-	        corners1_pts[i] = corners1_vec[i];    
+	        corners2_pts[i] = corners2_vec[i];    
 	    }
+
+		ROS_INFO("corners2");
+        cout << corners2_vec << endl;
 
 	    getPerspectives();
 
-	}
 
+
+		for (int n=0;n<=3; n++) {
+
+	        float x = H_camcam_inv.at<double>(0,0) * corners2_vec[n].x + H_camcam_inv.at<double>(0,1) * corners2_vec[n].y + H_camcam_inv.at<double>(0,2);
+	        float y = H_camcam_inv.at<double>(1,0) * corners2_vec[n].x + H_camcam_inv.at<double>(1,1) * corners2_vec[n].y + H_camcam_inv.at<double>(1,2);
+	        float w = H_camcam_inv.at<double>(2,0) * corners2_vec[n].x + H_camcam_inv.at<double>(2,1) * corners2_vec[n].y + H_camcam_inv.at<double>(2,2);
+
+	        corners2_pts_camcam[n]=Point(x/w,y/w);
+		
+		}
+
+	}
 	void position1Callback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose1_msg) 
 	{
 		current_time1 = ros::Time::now();
@@ -160,29 +202,23 @@ public:
 
 	    Point2f vehicle_pose_temp;
 
+	    int ID_num = 1;
 	    // transform coordinates
 	    if (ID_num > 1) { // ID = 2, HbirdHcamcamOG
-	                float x = H_camcam.at<double>(0,0) * x + H_camcam.at<double>(0,1) * y + H_camcam.at<double>(0,2);
-	                float y = H_camcam.at<double>(1,0) * x + H_camcam.at<double>(1,1) * y + H_camcam.at<double>(1,2);
-	                float w = H_camcam.at<double>(2,0) * x + H_camcam.at<double>(2,1) * y + H_camcam.at<double>(2,2);
+	                float x = H_camcam_inv.at<double>(0,0) * x + H_camcam_inv.at<double>(0,1) * y + H_camcam_inv.at<double>(0,2);
+	                float y = H_camcam_inv.at<double>(1,0) * x + H_camcam_inv.at<double>(1,1) * y + H_camcam_inv.at<double>(1,2);
+	                float w = H_camcam_inv.at<double>(2,0) * x + H_camcam_inv.at<double>(2,1) * y + H_camcam_inv.at<double>(2,2);
 
 	                vehicle_pose_temp=Point(x/w,y/w);
 
-	                x = H_cambird.at<double>(0,0) * vehicle_pose_temp.x + H_cambird.at<double>(0,1) * vehicle_pose_temp.y + H_cambird.at<double>(0,2);
-	                y = H_cambird.at<double>(1,0) * vehicle_pose_temp.x + H_cambird.at<double>(1,1) * vehicle_pose_temp.y + H_cambird.at<double>(1,2);
-	                w = H_cambird.at<double>(2,0) * vehicle_pose_temp.x + H_cambird.at<double>(2,1) * vehicle_pose_temp.y + H_cambird.at<double>(2,2);
 
-	                vehicle_pose_temp=Point(x/w,y/w);
+	    } else { // ID_num = 1 , HbirdOG
 
-	    } else { // ID_num = 0 , HbirdOG
-
-	                float x = H_cambird.at<double>(0,0) * x + H_cambird.at<double>(0,1) * y + H_cambird.at<double>(0,2);
-	                float y = H_cambird.at<double>(1,0) * x + H_cambird.at<double>(1,1) * y + H_cambird.at<double>(1,2);
-	                float w = H_cambird.at<double>(2,0) * x + H_cambird.at<double>(2,1) * y + H_cambird.at<double>(2,2);
-
-	                vehicle_pose_temp=Point(x/w,y/w);
+	                vehicle_pose_temp=Point(x,y);
 
 	    }
+	    ROS_INFO("vehicle_pose1: ( %f , %f )",x,y);
+
 
 	    x1  = double(vehicle_pose_temp.x);
 	    y1 = double(vehicle_pose_temp.y);
@@ -196,6 +232,9 @@ public:
 		x_prev1 = x1;
 		y_prev1 = y1;
 		th_prev1 = th1;
+	
+		pose_selector () ;
+
 	}
 
 	void position2Callback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose2_msg) 
@@ -210,29 +249,24 @@ public:
 
 	    Point2f vehicle_pose_temp;
 
+
+	    int ID_num = 2;
 	    // transform coordinates
 	    if (ID_num > 1) { // ID = 2, HbirdHcamcamOG
-	                float x = H_camcam.at<double>(0,0) * x + H_camcam.at<double>(0,1) * y + H_camcam.at<double>(0,2);
-	                float y = H_camcam.at<double>(1,0) * x + H_camcam.at<double>(1,1) * y + H_camcam.at<double>(1,2);
-	                float w = H_camcam.at<double>(2,0) * x + H_camcam.at<double>(2,1) * y + H_camcam.at<double>(2,2);
+	                float x = H_camcam_inv.at<double>(0,0) * x + H_camcam_inv.at<double>(0,1) * y + H_camcam_inv.at<double>(0,2);
+	                float y = H_camcam_inv.at<double>(1,0) * x + H_camcam_inv.at<double>(1,1) * y + H_camcam_inv.at<double>(1,2);
+	                float w = H_camcam_inv.at<double>(2,0) * x + H_camcam_inv.at<double>(2,1) * y + H_camcam_inv.at<double>(2,2);
 
 	                vehicle_pose_temp=Point(x/w,y/w);
 
-	                x = H_cambird.at<double>(0,0) * vehicle_pose_temp.x + H_cambird.at<double>(0,1) * vehicle_pose_temp.y + H_cambird.at<double>(0,2);
-	                y = H_cambird.at<double>(1,0) * vehicle_pose_temp.x + H_cambird.at<double>(1,1) * vehicle_pose_temp.y + H_cambird.at<double>(1,2);
-	                w = H_cambird.at<double>(2,0) * vehicle_pose_temp.x + H_cambird.at<double>(2,1) * vehicle_pose_temp.y + H_cambird.at<double>(2,2);
 
-	                vehicle_pose_temp=Point(x/w,y/w);
+	    } else { // ID_num = 1 , HbirdOG
 
-	    } else { // ID_num = 0 , HbirdOG
-
-	                float x = H_cambird.at<double>(0,0) * x + H_cambird.at<double>(0,1) * y + H_cambird.at<double>(0,2);
-	                float y = H_cambird.at<double>(1,0) * x + H_cambird.at<double>(1,1) * y + H_cambird.at<double>(1,2);
-	                float w = H_cambird.at<double>(2,0) * x + H_cambird.at<double>(2,1) * y + H_cambird.at<double>(2,2);
-
-	                vehicle_pose_temp=Point(x/w,y/w);
+	                vehicle_pose_temp=Point(x,y);
 
 	    }
+	    ROS_INFO("vehicle_pose2: ( %f , %f )",x,y);
+
 
 	    x2  = double(vehicle_pose_temp.x);
 	    y2 = double(vehicle_pose_temp.y);
@@ -247,11 +281,12 @@ public:
 		y_prev2 = y2;
 		th_prev2 = th2;
 
+		pose_selector () ;
 	}
 
 	void pose_selector () 
 	{
-		if (confidence1 && confidence2 > 0) {
+		if (confidence1 || confidence2 > 0) {
 	//		if confidence1 >
 			switch (selector_state) 					
 			{
@@ -365,8 +400,12 @@ public:
 			odom.twist.twist.angular.z = vth_out;
 
 			//publish the message
-			odom_pub.publish(odom);
+			if (selector_state == ID_num) 
+			{
 
+				odom_pub.publish(odom);
+
+			}
 
 		} else { selector_state = 0 ; }
 		
@@ -393,12 +432,14 @@ private:
 	Point2f undistorted_pts[4];
 	Point2f corners1_pts[4];
 	Point2f corners2_pts[4];
+	Point2f corners2_pts_camcam[4];
 
 	int corner_tic = 0;
 	int board_w = 80;
 	int board_h = 60;
 	Mat H_camcam;
 	Mat H_cambird;
+	Mat H_camcam_inv;
 
 	double x1;
 	double y1;
