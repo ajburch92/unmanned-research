@@ -53,7 +53,7 @@ void onMouse( int evt, int x, int y, int flags, void *param)
 	if (evt == CV_EVENT_LBUTTONDOWN) 
 	{
 		vector<Point>* ptPtr = (vector<Point>*)param;
-		ptPtr->push_back(Point(x/2,y/2));
+		ptPtr->push_back(Point(x,y));
 		ROS_INFO("left click registered");
 
 
@@ -334,7 +334,7 @@ public:
 		{
 			for (int j = 0; j < goal_points.size(); j++)
 			{
-				circle(frame,goal_points[j], 2, goal_color,6);
+				circle(frame,goal_points[j]*2, 2, goal_color,6);
 			}
 
 		}

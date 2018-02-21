@@ -49,7 +49,7 @@ static int dy[dir]={0, 1, 1, 1, 0, -1, -1, -1};
 const string astarwindowName = "Astar planner";
 image_transport::Publisher path_pub;
 ros::Publisher wp_pub;
-
+image_transport::Publisher pub_worldOG;
 Point vehicle_pose;
 
 // start and finish locations
@@ -60,10 +60,11 @@ int yB = 0;
 
 int subgoal = 0;
 
-Mat gridDownLocal(n,m,CV_8UC1,Scalar(0));
-Mat occupancyGridLocal(n,m,CV_8UC1,Scalar(0));
-Mat gridDownRemote(n,m,CV_8UC1,Scalar(0));
-Mat occupancyGridRemote(n,m,CV_8UC1,Scalar(0));
+Mat gridDownLocal(n/3,m/3,CV_8UC1,Scalar(0));
+Mat occupancyGridLocal(n/3,m/3,CV_8UC1,Scalar(0));
+Mat gridDownRemote(n/3,m/3,CV_8UC1,Scalar(0));
+Mat occupancyGridRemote(n/3,m/3,CV_8UC1,Scalar(0));
+Mat occupancyGridworld(n,m,CV_8UC1,Scalar(0));
 
 double conv_facLocal;
 double conv_facRemote;
@@ -85,7 +86,8 @@ int board_h = 120;
 Mat H_camcam;
 Mat H_camcam_inv;
 Mat H_cambird;
-Mat worldMap, worldMap1, worldMap2;
+Mat gridRemoteResized;
+Mat worldMap, MapLocal, MapRemote;
 int worldMap_tic = 0;
 class node
 {
@@ -362,192 +364,79 @@ void goal_outCallback (const geometry_msgs::PoseArray::ConstPtr& goal_out_pose_m
 
 }
 
-void occupancyGridLocalCallback (const sensor_msgs::ImageConstPtr& msg) 
-{
-	cv_bridge::CvImagePtr occupancyGridLocal_ptr;
-
-	gridDownLocal.setTo(Scalar(0)); // just obstacles (world size)
-	occupancyGridLocal.setTo(Scalar(0)); // path pub (world size)
-
-    Mat occupancyGridLocalTemp; //framesize
-    occupancyGridLocalTemp.setTo(Scalar(0));
-
-	try
-	{
-		occupancyGridLocal_ptr  = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::MONO8);
-		ROS_INFO("cv_bridge local msg read");
-	}
-	catch (cv_bridge::Exception& e)
-	{
-		ROS_INFO("cv_bridge exception: %s", e.what());
-		return;
-	}
-
-    occupancyGridLocalTemp = occupancyGridLocal_ptr -> image;
-    
-    
-/*    if (ID_num > 1) { // ID = 2, HbirdHcamcamOG
-
-        warpPerspective(occupancyGridLocalTemp , occupancyGridLocalTemp, H_camcam, occupancyGridLocalTemp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-        warpPerspective(occupancyGridLocalTemp , occupancyGridLocalTemp, H_cambird, occupancyGridLocalTemp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-
-    } else { // ID_num = 0 , HbirdOG
-            warpPerspective(occupancyGridLocalTemp , occupancyGridLocalTemp, H_cambird, occupancyGridLocalTemp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-
-    }
-
-    Mat occupancyGridLocal(occupancyGridLocalTemp.rows*2,occupancyGridLocalTemp.cols*2,occupancyGridLocalTemp.type());
-    occupancyGridLocal.setTo(Scalar(0));
-    occupancyGridLocalTemp.copyTo(occupancyGridLocal(Rect(0,0,occupancyGridLocalTemp.cols,occupancyGridLocalTemp.rows)));
-    occupancyGridLocal.copyTo(gridDownLocal);
-*/
-    // convert to grid size - ALREADY DOWN SAMPLED, JUST NEED TO INCREASE RESOLUTION UPON PUBLISHING
-    //memcpy(gridDown.data, grid,n*m*sizeof(int)
-    // fill matrix grid same size with object positions
-    
-    for (int x = 1; x <= n; x++)
-    {
-		for (int y = 1; y<=m; y++)
-		{
-			int pix = (int)gridDownLocal.at<uchar>(x,y);
-			if (pix > 0) // obstacle
-			{
-				grid[x][y] = 1;
-			} else {
-				grid[x][y] = 1;
-			}
-		}
-	}
-
-
-    counter++;
-
-
-
-}
-
-void occupancyGridRemoteCallback (const sensor_msgs::ImageConstPtr& msg) 
-{
-    // fillout the grid matrix with a '+' pattern
-	cv_bridge::CvImagePtr occupancyGridRemote_ptr;
-
-	gridDownRemote.setTo(Scalar(0));
-	occupancyGridRemote.setTo(Scalar(0));
-	gridDownRemote.setTo(Scalar(0));
-	
-	try
-	{
-		occupancyGridRemote_ptr  = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::MONO8);
-		ROS_INFO("cv_bridge remote msg read");
-	}
-	catch (cv_bridge::Exception& e)
-	{
-		ROS_INFO("cv_bridge exception: %s", e.what());
-		return;
-	}
-
-    gridDownRemote = occupancyGridRemote_ptr -> image;
-
-
-    //update map
-    //publish read frame to check?
-
-    //transform image 
-    if (ID_num > 1) { // ID = 2, HbirdHcamcamOG
-
-        warpPerspective(gridDownRemote , gridDownRemote, H_camcam, gridDownRemote.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-        warpPerspective(gridDownRemote , gridDownRemote, H_cambird, gridDownRemote.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-
-    } else { // ID_num = 0 , HbirdOG
-            warpPerspective(gridDownRemote , gridDownRemote, H_cambird, gridDownRemote.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-
-    }
-
-    // copy occupancy grid pixels to matrix
-    for (int x = 1; x <= n/scale_factor; x++)
-    {
-        for (int y = 1; y<=m/scale_factor; y++)
-        {
-            int pix = (int)gridDownRemote.at<uchar>(x,y);
-            if (pix > 0) // obstacle
-            {
-                grid[x][y] = 1;
-            } else {
-                grid[x][y] = 0;
-            }
-        }
-    }
-    //
-    
+void resizeGrid(Mat grid) {
+    gridRemoteResized = grid;
+    Size downsizeHigh(gridRemoteResized.cols * scale_factor , gridRemoteResized.rows * scale_factor); // this should be 160x120 
+    resize(grid,gridRemoteResized,downsizeHigh);
+    ROS_INFO("gridRemoteResized : %i x %i" , gridRemoteResized.cols, gridRemoteResized.rows);
 }
 
 
-void updateMap(Mat &temp, int ID) {
-    Mat worldMaptemp1(temp.rows*3,temp.cols*3,temp.type(),Scalar(0));
-    Mat worldMaptemp2(temp.rows*3,temp.cols*3,temp.type(),Scalar(0));
+void updateMap(Mat &temp, bool local) {
+    Mat MapLocaltemp(temp.rows*3,temp.cols*3,temp.type(),Scalar(0));
+    Mat MapRemotetemp(temp.rows*3,temp.cols*3,temp.type(),Scalar(0));
+
+    occupancyGridworld.setTo(Scalar(0)); // path pub (world size)
+
     if (counter < 1) { //zero out
-        worldMaptemp1.copyTo(worldMap);
-        worldMap.copyTo(worldMap1);
-        worldMap.copyTo(worldMap2);
+        MapLocaltemp.copyTo(worldMap);
+        worldMap.copyTo(MapLocal);
+        worldMap.copyTo(MapRemote);
     }
     worldMap_tic++;;
     //else, for 2 count, add images from ID 1 and 2
-    if (ID > 1) { // ID = 2, HbirdHcamcamOG
-        warpPerspective(temp , temp, H_camcam, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-        
-        cout << "tranform performed" << endl; 
-        //warpPerspective(temp , temp, H_cambird, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-        temp.copyTo(worldMaptemp1(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
+    if (local > 0) { //local
+        temp.copyTo(MapLocaltemp(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
+        addWeighted(MapLocal,0.5,MapLocaltemp,0.5,0.0,MapLocal);
 
-        //temp.copyTo(worldMaptemp1(Rect(temp.cols+(((int)(corners1_pts[0].x/scale_factor))-((int)(corners2_pts[0].x/scale_factor))),temp.rows+((int)(corners1_pts[0].y/scale_factor)-((int)(corners2_pts[0].y/scale_factor))),160,120)));
-
-        addWeighted(worldMap1,0.5,worldMaptemp1,0.5,0.0,worldMap1);
-        //worldMap = worldMaptemp + worldMap;
-        //worldMaptemp.copyTo(worldMap);
-
-    } else { // ID_num = 1 , HbirdOG
-        //upsampleFrame(temp);
-
-        //warpPerspective(temp , temp, H_cambird, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(255));
-        //downsampleFrame(temp);
-
-        temp.copyTo(worldMaptemp2(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
-        //warpPerspective(worldMaptemp , worldMaptemp, H_cambird, worldMaptemp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(255));
-
-        addWeighted(worldMap2,0.5,worldMaptemp2,0.5,0.0,worldMap2);
-//          worldMap = worldMaptemp + worldMap;
-
-        //worldMaptemp.copyTo(worldMap);
+    } else { //remote
+        temp.copyTo(MapRemotetemp(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
+        addWeighted(MapRemote,0.5,MapRemotetemp,0.5,0.0,MapRemote);
     }
 
     // publish and reset
     if (worldMap_tic >= 2) {
         worldMap_tic = 0;
-        addWeighted(worldMap1,0.5,worldMap2,0.5,0.0,worldMap);
+        addWeighted(MapLocal,0.5,MapRemote,0.5,0.0,worldMap);
 
-        // std_msgs::Header header;
-        // header.stamp = ros::Time::now();
-        // cv_bridge::CvImage worldMap_bridge;
-        // sensor_msgs::Image worldMap_msg;
-        // worldMap_bridge = cv_bridge::CvImage(header,sensor_msgs::image_encodings::BGR8, worldMap);
-        // worldMap_bridge.toImageMsg(worldMap_msg);
-        // pub_worldMap.publish(worldMap_msg);
+        std_msgs::Header header;
+        header.stamp = ros::Time::now();
+        cv_bridge::CvImage worldOG_bridge;
+        sensor_msgs::Image worldOG_msg;
+        worldOG_bridge = cv_bridge::CvImage(header,sensor_msgs::image_encodings::MONO8, worldMap);
+        worldOG_bridge.toImageMsg(worldOG_msg);
+        pub_worldOG.publish(worldOG_msg);
 
+    }
+
+    ROS_INFO("check1");
+    for (int x = 1; x <= n; x++)
+    {
+        for (int y = 1; y<=m; y++)
+        {   
+            int pix = (int)worldMap.at<uchar>(x,y);
+            if (pix > 0) // obstacle
+            {
+                grid[x][y] = 1;
+            } else {
+                grid[x][y] = 1;
+            }
+        }
     }
 
 
     std_msgs::Header header; //empty header
     header.seq = counter; // user defined counter
     header.stamp = ros::Time::now(); // time
-    cv_bridge::CvImage occupancyLocal_bridge;
-    sensor_msgs::Image occupancyGridLocal_msg;
+    cv_bridge::CvImage occupancy_bridge;
+    sensor_msgs::Image occupancyGrid_msg;
 
     // create waypoint message
     geometry_msgs::PoseArray poseArray;
     poseArray.poses.clear();
     poseArray.header.stamp=ros::Time::now();
     geometry_msgs::Pose wp_pose_msg;
-
+    ROS_INFO("start(%i, %i) - end (%i, %i)", xA, yA, xB, yB);
     clock_t start = clock();
     string route=pathFind(xA, yA, xB, yB);
     if(route=="") ROS_INFO("An empty route generated!");
@@ -586,7 +475,8 @@ void updateMap(Mat &temp, int ID) {
             y_prev = y;
         }
         grid[x][y]=4;
-    
+        ROS_INFO("check2");
+
         // display the grid with the route
         //write to output image topic
         for(int y=0;y<m;y++)
@@ -600,35 +490,36 @@ void updateMap(Mat &temp, int ID) {
                 else if(grid[x][y]==1)
                 {
                     //cout<<"O"; //obstacle
-                    occupancyGridLocal.at<uchar>(Point(x,y)) = 255;
+                    occupancyGridworld.at<uchar>(Point(x,y)) = 255;
                 }
                 else if(grid[x][y]==2)
                 {
                     //cout<<"S"; //start
-                    circle(occupancyGridLocal, Point(x,y), 2, 125,2);
+                    circle(occupancyGridworld, Point(x,y), 2, 125,2);
 
                 }
                 else if(grid[x][y]==3)
                 {
-                    occupancyGridLocal.at<uchar>(Point(x,y)) = 150;
+                    occupancyGridworld.at<uchar>(Point(x,y)) = 150;
                     //circle(occupancyGrid, Point(x,y), 1,255,1);
                 }
                 else if(grid[x][y]==4)
                 {
                     //cout<<"F"; //finish
-                    circle(occupancyGridLocal, Point(x,y), 2,175,2);
+                    circle(occupancyGridworld, Point(x,y), 2,175,2);
                 }
             //cout<<endl;
             }
         }
     }
+    ROS_INFO("check3");
 
     ROS_INFO("poseArray published");
     wp_pub.publish(poseArray); 
     
-    occupancyLocal_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, occupancyGridLocal);
-    occupancyLocal_bridge.toImageMsg(occupancyGridLocal_msg);
-    path_pub.publish(occupancyGridLocal_msg);
+    occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, occupancyGridworld);
+    occupancy_bridge.toImageMsg(occupancyGrid_msg);
+    path_pub.publish(occupancyGrid_msg);
 
     //empty map
     for(int y=0;y<m;y++)
@@ -638,6 +529,61 @@ void updateMap(Mat &temp, int ID) {
     //empty mats
     
 }
+
+void occupancyGridLocalCallback (const sensor_msgs::ImageConstPtr& msg) 
+{
+	cv_bridge::CvImagePtr occupancyGridLocal_ptr;
+
+	gridDownLocal.setTo(Scalar(0)); // just obstacles (world size)
+
+	try
+	{
+		occupancyGridLocal_ptr  = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::MONO8);
+		ROS_INFO("cv_bridge local msg read");
+	}
+	catch (cv_bridge::Exception& e)
+	{
+		ROS_INFO("cv_bridge exception: %s", e.what());
+		return;
+	}
+
+    gridDownLocal = occupancyGridLocal_ptr -> image;
+
+    updateMap(gridDownLocal, 0);
+
+    counter++;
+
+}
+
+void occupancyGridRemoteCallback (const sensor_msgs::ImageConstPtr& msg) 
+{
+    // fillout the grid matrix with a '+' pattern
+	cv_bridge::CvImagePtr occupancyGridRemote_ptr;
+
+	gridDownRemote.setTo(Scalar(0));
+	
+	try
+	{
+		occupancyGridRemote_ptr  = cv_bridge::toCvCopy(msg,sensor_msgs::image_encodings::MONO8);
+		ROS_INFO("cv_bridge remote msg read");
+	}
+	catch (cv_bridge::Exception& e)
+	{
+		ROS_INFO("cv_bridge exception: %s", e.what());
+		return;
+	}
+
+    gridDownRemote = occupancyGridRemote_ptr -> image;
+
+    warpPerspective(gridDownRemote , gridDownRemote, H_camcam, gridDownRemote.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
+
+    resizeGrid(gridDownRemote);
+
+    updateMap(gridRemoteResized, 0);
+    
+}
+
+
 
 
 void getPerspectives() {
@@ -725,6 +671,7 @@ int main(int argc, char **argv)
 	string confidenceRemote = "/confidence" + other_s;
 	string pathGrid = "/pathGrid" + s ;
 	string wp_pose = "/wp_pose" + s ;
+    string worldOG_string = "/occupancyGridWorld";
 
 
     srand(time(NULL));
@@ -766,7 +713,7 @@ int main(int argc, char **argv)
     // publish topics for the output visualization and for the next waypoint for the low level controller.
     path_pub = it_astar.advertise(pathGrid,1);
 	wp_pub = node.advertise<geometry_msgs::PoseArray>(wp_pose,2);
-
+    pub_worldOG = it_astar.advertise(worldOG_string,1);
 
     
     ROS_INFO("Start path planning operations");
