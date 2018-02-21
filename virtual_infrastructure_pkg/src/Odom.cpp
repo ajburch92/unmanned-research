@@ -196,8 +196,8 @@ public:
 		dt1 = (current_time1 - last_time1).toSec();
 
 		// read msg data
-		double xtemp = vehicle_pose1_msg->x;
-		double ytemp = vehicle_pose1_msg->y;
+		double xtemp = vehicle_pose1_msg->x + 1280;
+		double ytemp = vehicle_pose1_msg->y + 960;
 		double th = vehicle_pose1_msg->theta;
 
 	    Point2f vehicle_pose_temp;
@@ -243,8 +243,8 @@ public:
 		dt2 = (current_time2 - last_time2).toSec();
 
 		// read msg data
-		double x = vehicle_pose2_msg->x;
-		double y = vehicle_pose2_msg->y;
+		double xtemp = vehicle_pose2_msg->x + 1280;
+		double ytemp = vehicle_pose2_msg->y + 960;
 		double th = vehicle_pose2_msg->theta;
 
 	    Point2f vehicle_pose_temp;
@@ -253,19 +253,19 @@ public:
 	    int ID_num = 2;
 	    // transform coordinates
 	    if (ID_num > 1) { // ID = 2, HbirdHcamcamOG
-	                float x = H_camcam_inv.at<double>(0,0) * x + H_camcam_inv.at<double>(0,1) * y + H_camcam_inv.at<double>(0,2);
-	                float y = H_camcam_inv.at<double>(1,0) * x + H_camcam_inv.at<double>(1,1) * y + H_camcam_inv.at<double>(1,2);
-	                float w = H_camcam_inv.at<double>(2,0) * x + H_camcam_inv.at<double>(2,1) * y + H_camcam_inv.at<double>(2,2);
+	                float x = H_camcam_inv.at<double>(0,0) * xtemp + H_camcam_inv.at<double>(0,1) * ytemp + H_camcam_inv.at<double>(0,2);
+	                float y = H_camcam_inv.at<double>(1,0) * xtemp + H_camcam_inv.at<double>(1,1) * ytemp + H_camcam_inv.at<double>(1,2);
+	                float w = H_camcam_inv.at<double>(2,0) * xtemp + H_camcam_inv.at<double>(2,1) * ytemp + H_camcam_inv.at<double>(2,2);
 
 	                vehicle_pose_temp=Point(x/w,y/w);
 
 
 	    } else { // ID_num = 1 , HbirdOG
 
-	                vehicle_pose_temp=Point(x,y);
+	                vehicle_pose_temp=Point(xtemp,ytemp);
 
 	    }
-	    ROS_INFO("vehicle_pose2: ( %f , %f )",x,y);
+	    ROS_INFO("vehicle_pose2: ( %f , %f )",xtemp,ytemp);
 
 
 	    x2  = double(vehicle_pose_temp.x);

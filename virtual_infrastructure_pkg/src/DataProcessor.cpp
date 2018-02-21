@@ -53,7 +53,7 @@ void onMouse( int evt, int x, int y, int flags, void *param)
 	if (evt == CV_EVENT_LBUTTONDOWN) 
 	{
 		vector<Point>* ptPtr = (vector<Point>*)param;
-		ptPtr->push_back(Point(x,y));
+		ptPtr->push_back(Point(x/2,y/2));
 		ROS_INFO("left click registered");
 
 
@@ -160,8 +160,8 @@ public:
 
 	void targetwp1Callback (const geometry_msgs::Pose2D::ConstPtr& target_wp_msg) 
 	{
-	    target_wp.x  = target_wp_msg->x;
-	    target_wp.y = target_wp_msg->y;
+	    target_wp.x  = target_wp_msg->x / scale_factor;
+	    target_wp.y = target_wp_msg->y / scale_factor;
 	    ROS_INFO("targetwpCallback: ( %i , %i )",target_wp.x,target_wp.y);
 	}
 
@@ -289,8 +289,8 @@ public:
 
 		for (int i=0; i<size; i++) 
 		{
-			goal_pose_out_msg.position.x = goal_points[i].x*scale_factor;
-	        goal_pose_out_msg.position.y = goal_points[i].y*scale_factor;
+			goal_pose_out_msg.position.x = goal_points[i].x;
+	        goal_pose_out_msg.position.y = goal_points[i].y;
 
 	        poseArray.poses.push_back(goal_pose_out_msg);
 
@@ -306,7 +306,7 @@ public:
 	{
 
 		Scalar path_color = Scalar(0,255,0);
-		Scalar wp_color = Scalar(255,50,0);
+		Scalar wp_color = Scalar(50,255,0);
 		Scalar goal_color = Scalar(255,0,0);
 
 		circle(frame,vehicle_pose,LOS_RADIUS, Scalar(102, 178, 255));
@@ -325,7 +325,7 @@ public:
 		ROS_INFO("wp vector size = %i",size);
     	for (int i=0;i<size;i++)
     	{
-    		circle(frame,vector_wp[i], 2, path_color,2);
+    		circle(frame,vector_wp[i], 1, path_color,1);
     		//ROS_INFO("wp:%i,%i",vector_wp[i].x,vector_wp[i].y);
 
 		}
@@ -334,12 +334,12 @@ public:
 		{
 			for (int j = 0; j < goal_points.size(); j++)
 			{
-				circle(frame,goal_points[j]*2, 2, goal_color,6);
+				circle(frame,goal_points[j], 2, goal_color,5);
 			}
 
 		}
 
-		circle(frame,Point((int)target_wp.x, (int)target_wp.y), 3, wp_color,3);
+		circle(frame,Point((int)target_wp.x, (int)target_wp.y), 2, wp_color,2);
 
 		// draw target angle vector
 		Point target_angle_endpoint;
@@ -373,6 +373,8 @@ public:
 	   	circle(frame, Point(160+corners1_pts[2].x/scale_factor-corners2_pts[2].x/scale_factor,120+corners1_pts[2].y/scale_factor - corners2_pts[2].y/scale_factor), 4, Scalar(255,0,0),1);
 	   	circle(frame, Point(160+corners1_pts[3].x/scale_factor-corners2_pts[3].x/scale_factor,120+corners1_pts[3].y/scale_factor - corners2_pts[3].y/scale_factor), 4, Scalar(255,0,0),1);
 */
+		circle(frame,vehicle_pose,2, Scalar(102, 178, 255),2);
+
 	}
 
 	void getPerspectives() {

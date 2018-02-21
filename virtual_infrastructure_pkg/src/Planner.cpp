@@ -68,6 +68,8 @@ int ID_num;
 
 int arm_bool;
 
+int scale_factor = 8;
+
 
 void update_target_speed()
 {
@@ -192,11 +194,15 @@ void waypointCallback (const geometry_msgs::PoseArray::ConstPtr& waypoint_pose_m
   int i = 0;
   double euclidean_d=0;
   int sz = waypoint_pose_msg->poses.size();
+  int xtemp, ytemp;
   if (sz > 0) 
   {
     while ((euclidean_d <= LOS_RADIUS) && (i<(sz-1)))
     {
-      euclidean_d = sqrt(((x_vehicle-waypoint_pose_msg->poses[i].position.x)*(x_vehicle-waypoint_pose_msg->poses[i].position.x)) + ((y_vehicle-waypoint_pose_msg->poses[i].position.y)*(y_vehicle-waypoint_pose_msg->poses[i].position.y)));
+      xtemp  = waypoint_pose_msg->poses[i].position.x*scale_factor;
+      ytemp = waypoint_pose_msg->poses[i].position.y*scale_factor;
+      euclidean_d = sqrt(((x_vehicle-xtemp)*(x_vehicle-xtemp)) + ((y_vehicle-ytemp)*(y_vehicle-ytemp)));
+
       if (euclidean_d > LOS_RADIUS)
       {
         break; // waypoint found
@@ -214,8 +220,8 @@ void waypointCallback (const geometry_msgs::PoseArray::ConstPtr& waypoint_pose_m
       //ROS_INFO("waypoint( %f , %f ), waypointDistance: %f",waypoint_pose_msg->poses[i].position.x,waypoint_pose_msg->poses[i].position.y,euclidean_d);
       //vector_wp[i] = Point(waypoint_pose_msg->poses[i].position.x, waypoint_pose_msg->poses[i].position.y);
 
-    x_wp  = waypoint_pose_msg->poses[i].position.x;
-    y_wp = waypoint_pose_msg->poses[i].position.y;
+    x_wp  = waypoint_pose_msg->poses[i].position.x*scale_factor;
+    y_wp = waypoint_pose_msg->poses[i].position.y*scale_factor;
 
     ROS_INFO("waypointTarget: ( %f , %f ), waypointDistance: %f",x_wp,y_wp,euclidean_d);
     

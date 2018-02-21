@@ -32,8 +32,8 @@ using namespace cv;
 //m and n should start as camera resolution size
 int scale_factor = 8; // change this to a launch file paramerter. this is the downsampling applied to the occupancy grid.
 //res initially 1288x964 then resize to 1280x960, reduced to 160x120 (8x)
-const int n=160*3;//160; // horizontal size of the grid  CAN I CHECK CONFIG FILE FOR THIS VALUE
-const int m=120*3;//120; // vertical size size of the grid
+const int n=120*3;//160; // horizontal size of the grid  CAN I CHECK CONFIG FILE FOR THIS VALUE
+const int m=160*3;//120; // vertical size size of the grid
 static int grid[n][m];
 static int closed_nodes_grid[n][m]; // grid of closed (tried-out) nodes
 static int open_nodes_grid[n][m]; // grid of open (not-yet-tried) nodes
@@ -275,11 +275,11 @@ string pathFind( const int & xStart, const int & yStart,
 void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
 {
 	double xtemp, ytemp;
-    vehicle_pose.x = vehicle_pose_msg->x;
-    vehicle_pose.y = vehicle_pose_msg ->y;
+    vehicle_pose.x = vehicle_pose_msg->x ;
+    vehicle_pose.y = vehicle_pose_msg ->y ;
     //translate to downsampled coordinates
-    xtemp = vehicle_pose.x / scale_factor;
-    ytemp = vehicle_pose.y / scale_factor;
+    xtemp = vehicle_pose.x / scale_factor + 160;
+    ytemp = vehicle_pose.y / scale_factor + 120;
 
     Point2f vehicle_pose_temp;
 
@@ -355,8 +355,8 @@ void goal_outCallback (const geometry_msgs::PoseArray::ConstPtr& goal_out_pose_m
       	}
       }
     }
-	xtemp = goal_out_pose_msg->poses[subgoal].position.x / scale_factor;
-	ytemp = goal_out_pose_msg->poses[subgoal].position.y / scale_factor;
+	xtemp = goal_out_pose_msg->poses[subgoal].position.x;
+	ytemp = goal_out_pose_msg->poses[subgoal].position.y;
 	xB  = (int)xtemp;
 	yB = (int)ytemp;
 
@@ -409,7 +409,12 @@ void updateMap(Mat &temp, bool local) {
 
     }
 
-    ROS_INFO("check1");
+    ROS_INFO("worldMap : %i x %i" , worldMap.cols, worldMap.rows);
+    ROS_INFO("grid : %i x %i" , m,n);
+
+
+    //empty mats
+
     for (int x = 1; x <= n; x++)
     {
         for (int y = 1; y<=m; y++)
@@ -417,9 +422,9 @@ void updateMap(Mat &temp, bool local) {
             int pix = (int)worldMap.at<uchar>(x,y);
             if (pix > 0) // obstacle
             {
-                grid[x][y] = 1;
+                grid[y][x] = 1;
             } else {
-                grid[x][y] = 1;
+                grid[y][x] = 0;
             }
         }
     }
@@ -464,8 +469,8 @@ void updateMap(Mat &temp, bool local) {
             grid[x][y]=3;
 
             // fill wp vector
-            wp_pose_msg.position.x = double(x*scale_factor);
-            wp_pose_msg.position.y = double(y*scale_factor); // change to doubles
+            wp_pose_msg.position.x = double(x);
+            wp_pose_msg.position.y = double(y); // change to doubles
             poseArray.poses.push_back(wp_pose_msg); 
 
             // pushback if so many steps have passed? 
@@ -475,7 +480,6 @@ void updateMap(Mat &temp, bool local) {
             y_prev = y;
         }
         grid[x][y]=4;
-        ROS_INFO("check2");
 
         // display the grid with the route
         //write to output image topic
@@ -511,8 +515,19 @@ void updateMap(Mat &temp, bool local) {
             //cout<<endl;
             }
         }
+    } else { // just transfer objects 
+        for(int y=0;y<m;y++)
+        {
+            for(int x=0;x<n;x++)
+            {
+                if(grid[x][y]==1)
+                {
+                    //cout<<"O"; //obstacle
+                    occupancyGridworld.at<uchar>(Point(x,y)) = 255;
+                }
+            }
+        }
     }
-    ROS_INFO("check3");
 
     ROS_INFO("poseArray published");
     wp_pub.publish(poseArray); 
@@ -582,8 +597,6 @@ void occupancyGridRemoteCallback (const sensor_msgs::ImageConstPtr& msg)
     updateMap(gridRemoteResized, 0);
     
 }
-
-
 
 
 void getPerspectives() {
@@ -669,7 +682,7 @@ int main(int argc, char **argv)
 	string vehicle_pose_s = "/vehicle_pose" + s ;
 	string confidenceLocal = "/confidence" + s ;
 	string confidenceRemote = "/confidence" + other_s;
-	string pathGrid = "/pathGrid" + s ;
+	string pathGrid = "/pathGrid" ;
 	string wp_pose = "/wp_pose" + s ;
     string worldOG_string = "/occupancyGridWorld";
 
