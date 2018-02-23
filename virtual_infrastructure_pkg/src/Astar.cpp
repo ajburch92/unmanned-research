@@ -87,7 +87,7 @@ Mat H_camcam;
 Mat H_camcam_inv;
 Mat H_cambird;
 Mat gridRemoteResized;
-Mat worldMap, MapLocal, MapRemote;
+Mat worldMap, MapLocal, MapRemote, worldMapPrev;
 int worldMap_tic = 0;
 class node
 {
@@ -368,37 +368,36 @@ void resizeGrid(Mat grid) {
     gridRemoteResized = grid;
     Size downsizeHigh(gridRemoteResized.cols * scale_factor , gridRemoteResized.rows * scale_factor); // this should be 160x120 
     resize(grid,gridRemoteResized,downsizeHigh);
-    ROS_INFO("gridRemoteResized : %i x %i" , gridRemoteResized.cols, gridRemoteResized.rows);
+    //ROS_INFO("gridRemoteResized : %i x %i" , gridRemoteResized.cols, gridRemoteResized.rows);
 }
 
 
 void updateMap(Mat &temp, bool local) {
-    Mat MapLocaltemp(temp.rows*3,temp.cols*3,temp.type(),Scalar(0));
-    Mat MapRemotetemp(temp.rows*3,temp.cols*3,temp.type(),Scalar(0));
+    Mat Maptemp(temp.rows*3,temp.cols*3,temp.type(),Scalar(0));
 
     occupancyGridworld.setTo(Scalar(0)); // path pub (world size)
 
     if (counter < 1) { //zero out
-        MapLocaltemp.copyTo(worldMap);
+        Maptemp.copyTo(worldMap);
+        worldMap.copyTo(worldMapPrev);
         worldMap.copyTo(MapLocal);
         worldMap.copyTo(MapRemote);
     }
     worldMap_tic++;;
     //else, for 2 count, add images from ID 1 and 2
     if (local > 0) { //local
-        temp.copyTo(MapLocaltemp(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
-        addWeighted(MapLocal,0.5,MapLocaltemp,0.5,0.0,MapLocal);
-
+        MapLocal.setTo(Scalar(0));
+        temp.copyTo(MapLocal(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
+        warpPerspective(MapLocal , MapLocal, H_camcam, MapLocal.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(255));      
+        cout << "tranform performed" << endl; 
     } else { //remote
-        temp.copyTo(MapRemotetemp(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
-        addWeighted(MapRemote,0.5,MapRemotetemp,0.5,0.0,MapRemote);
+        MapRemote.setTo(Scalar(0));
+        temp.copyTo(MapRemote(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
     }
 
-    // publish and reset
     if (worldMap_tic >= 2) {
         worldMap_tic = 0;
         addWeighted(MapLocal,0.5,MapRemote,0.5,0.0,worldMap);
-
         std_msgs::Header header;
         header.stamp = ros::Time::now();
         cv_bridge::CvImage worldOG_bridge;
@@ -407,142 +406,132 @@ void updateMap(Mat &temp, bool local) {
         worldOG_bridge.toImageMsg(worldOG_msg);
         pub_worldOG.publish(worldOG_msg);
 
-    }
-
-    ROS_INFO("worldMap : %i x %i" , worldMap.cols, worldMap.rows);
-    ROS_INFO("grid : %i x %i" , m,n);
-
-
-    //empty mats
-
-    for (int x = 1; x <= n; x++)
-    {
-        for (int y = 1; y<=m; y++)
-        {   
-            int pix = (int)worldMap.at<uchar>(x,y);
-            if (pix > 0) // obstacle
-            {
-                grid[y][x] = 1;
-            } else {
-                grid[y][x] = 0;
+        for (int x = 1; x <= n; x++)
+        {
+            for (int y = 1; y<=m; y++)
+            {   
+                int pix = (int)worldMap.at<uchar>(x,y);
+                if (pix> 0) // obstacle
+                {    
+                    grid[y][x] = 1;
+                } else {
+                    grid[y][x] = 0;
+                }
             }
         }
-    }
 
+        header.seq = counter; // user defined counter
+        header.stamp = ros::Time::now(); // time
+        cv_bridge::CvImage occupancy_bridge;
+        sensor_msgs::Image occupancyGrid_msg;
 
-    std_msgs::Header header; //empty header
-    header.seq = counter; // user defined counter
-    header.stamp = ros::Time::now(); // time
-    cv_bridge::CvImage occupancy_bridge;
-    sensor_msgs::Image occupancyGrid_msg;
+        // create waypoint message
+        geometry_msgs::PoseArray poseArray;
+        poseArray.poses.clear();
+        poseArray.header.stamp=ros::Time::now();
+        geometry_msgs::Pose wp_pose_msg;
+        ROS_INFO("start(%i, %i) - end (%i, %i)", xA, yA, xB, yB);
+        clock_t start = clock();
+        string route=pathFind(xA, yA, xB, yB);
+        if(route=="") ROS_INFO("An empty route generated!");
+        // get cpu time
+        clock_t end = clock();
+        double time_elapsed = double(end - start);
+        ROS_INFO("Time to calculate the route (ms): %f" , time_elapsed);
 
-    // create waypoint message
-    geometry_msgs::PoseArray poseArray;
-    poseArray.poses.clear();
-    poseArray.header.stamp=ros::Time::now();
-    geometry_msgs::Pose wp_pose_msg;
-    ROS_INFO("start(%i, %i) - end (%i, %i)", xA, yA, xB, yB);
-    clock_t start = clock();
-    string route=pathFind(xA, yA, xB, yB);
-    if(route=="") ROS_INFO("An empty route generated!");
-    // get cpu time
-    clock_t end = clock();
-    double time_elapsed = double(end - start);
-    ROS_INFO("Time to calculate the route (ms): %f" , time_elapsed);
-
-    // follow the route on the grid and display it 
-    int j; char c;
-    int x=xA;
-    int y=yA;
-    int x_prev;
-    int y_prev;
-    if(route.length()>0)
-    {
-
-        grid[x][y]=2;
-        for(int i=0;i<route.length();i++)
+        // follow the route on the grid and display it 
+        int j; char c;
+        int x=xA;
+        int y=yA;
+        int x_prev;
+        int y_prev;
+        if(route.length()>0)
         {
-            c =route.at(i);
-            j=atoi(&c); 
-            x=x+dx[j];
-            y=y+dy[j];
-            grid[x][y]=3;
 
-            // fill wp vector
-            wp_pose_msg.position.x = double(x);
-            wp_pose_msg.position.y = double(y); // change to doubles
-            poseArray.poses.push_back(wp_pose_msg); 
+            grid[x][y]=2;
+            for(int i=0;i<route.length();i++)
+            {
+                c =route.at(i);
+                j=atoi(&c); 
+                x=x+dx[j];
+                y=y+dy[j];
+                grid[x][y]=3;
 
-            // pushback if so many steps have passed? 
-            //could hard code coarser path here, otherwise look at resolution factor tree, or crop/resize
+                // fill wp vector
+                wp_pose_msg.position.x = double(x);
+                wp_pose_msg.position.y = double(y); // change to doubles
+                poseArray.poses.push_back(wp_pose_msg); 
 
-            x_prev = x;
-            y_prev = y;
+                // pushback if so many steps have passed? 
+                //could hard code coarser path here, otherwise look at resolution factor tree, or crop/resize
+
+                x_prev = x;
+                y_prev = y;
+            }
+            grid[x][y]=4;
+
+            // display the grid with the route
+            //write to output image topic
+            for(int y=0;y<m;y++)
+            {
+                for(int x=0;x<n;x++)
+                {
+                    if(grid[x][y]==0)
+                    {
+                        //cout<<"."; // open space, keep black
+                    }
+                    else if(grid[x][y]==1)
+                    {
+                        //cout<<"O"; //obstacle
+                        occupancyGridworld.at<uchar>(Point(x,y)) = 255;
+                    }
+                    else if(grid[x][y]==2)
+                    {
+                        //cout<<"S"; //start
+                        circle(occupancyGridworld, Point(x,y), 2, 125,2);
+
+                    }
+                    else if(grid[x][y]==3)
+                    {
+                        occupancyGridworld.at<uchar>(Point(x,y)) = 150;
+                        //circle(occupancyGrid, Point(x,y), 1,255,1);
+                    }
+                    else if(grid[x][y]==4)
+                    {
+                        //cout<<"F"; //finish
+                        circle(occupancyGridworld, Point(x,y), 2,175,2);
+                    }
+                //cout<<endl;
+                }
+            }
+        } else { // just transfer objects 
+            for(int y=0;y<m;y++)
+            {
+                for(int x=0;x<n;x++)
+                {
+                    if(grid[x][y]==1)
+                    {
+                        //cout<<"O"; //obstacle
+                        occupancyGridworld.at<uchar>(Point(x,y)) = 255;
+                    }
+                }
+            }
         }
-        grid[x][y]=4;
 
-        // display the grid with the route
-        //write to output image topic
+        ROS_INFO("poseArray published");
+        wp_pub.publish(poseArray); 
+        
+        occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, occupancyGridworld);
+        occupancy_bridge.toImageMsg(occupancyGrid_msg);
+        path_pub.publish(occupancyGrid_msg);
+
+        //empty map
         for(int y=0;y<m;y++)
         {
-            for(int x=0;x<n;x++)
-            {
-                if(grid[x][y]==0)
-                {
-                    //cout<<"."; // open space, keep black
-                }
-                else if(grid[x][y]==1)
-                {
-                    //cout<<"O"; //obstacle
-                    occupancyGridworld.at<uchar>(Point(x,y)) = 255;
-                }
-                else if(grid[x][y]==2)
-                {
-                    //cout<<"S"; //start
-                    circle(occupancyGridworld, Point(x,y), 2, 125,2);
-
-                }
-                else if(grid[x][y]==3)
-                {
-                    occupancyGridworld.at<uchar>(Point(x,y)) = 150;
-                    //circle(occupancyGrid, Point(x,y), 1,255,1);
-                }
-                else if(grid[x][y]==4)
-                {
-                    //cout<<"F"; //finish
-                    circle(occupancyGridworld, Point(x,y), 2,175,2);
-                }
-            //cout<<endl;
-            }
+            for(int x=0;x<n;x++) grid[x][y]=0;
         }
-    } else { // just transfer objects 
-        for(int y=0;y<m;y++)
-        {
-            for(int x=0;x<n;x++)
-            {
-                if(grid[x][y]==1)
-                {
-                    //cout<<"O"; //obstacle
-                    occupancyGridworld.at<uchar>(Point(x,y)) = 255;
-                }
-            }
-        }
-    }
 
-    ROS_INFO("poseArray published");
-    wp_pub.publish(poseArray); 
-    
-    occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, occupancyGridworld);
-    occupancy_bridge.toImageMsg(occupancyGrid_msg);
-    path_pub.publish(occupancyGrid_msg);
-
-    //empty map
-    for(int y=0;y<m;y++)
-    {
-        for(int x=0;x<n;x++) grid[x][y]=0;
     }
-    //empty mats
-    
 }
 
 void occupancyGridLocalCallback (const sensor_msgs::ImageConstPtr& msg) 
@@ -564,9 +553,10 @@ void occupancyGridLocalCallback (const sensor_msgs::ImageConstPtr& msg)
 
     gridDownLocal = occupancyGridLocal_ptr -> image;
 
-    updateMap(gridDownLocal, 0);
+    updateMap(gridDownLocal, 1);
 
     counter++;
+    ROS_INFO("finished Local");
 
 }
 
@@ -590,11 +580,11 @@ void occupancyGridRemoteCallback (const sensor_msgs::ImageConstPtr& msg)
 
     gridDownRemote = occupancyGridRemote_ptr -> image;
 
-    warpPerspective(gridDownRemote , gridDownRemote, H_camcam, gridDownRemote.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-
     resizeGrid(gridDownRemote);
-
+        
     updateMap(gridRemoteResized, 0);
+    
+    ROS_INFO("finished Remote");
     
 }
 
@@ -682,9 +672,9 @@ int main(int argc, char **argv)
 	string vehicle_pose_s = "/vehicle_pose" + s ;
 	string confidenceLocal = "/confidence" + s ;
 	string confidenceRemote = "/confidence" + other_s;
-	string pathGrid = "/pathGrid" ;
+	string pathGrid = "/pathGrid"  + s;
 	string wp_pose = "/wp_pose" + s ;
-    string worldOG_string = "/occupancyGridWorld";
+    string worldOG_string = "/occupancyGridWorld" + s;
 
 
     srand(time(NULL));
@@ -709,6 +699,7 @@ int main(int argc, char **argv)
 
     H_camcam = getPerspectiveTransform(undistorted_pts, undistorted_pts);
     H_cambird = getPerspectiveTransform(undistorted_pts, undistorted_pts);
+    getPerspectives();
 
     // subscibe to vision outputs
     image_transport::ImageTransport it_astar(node);
@@ -731,7 +722,14 @@ int main(int argc, char **argv)
     
     ROS_INFO("Start path planning operations");
 
-    ros::spin();
+//    ros::spin();
+    ros::Rate r(4);
+    while(ros::ok()) {
+        ros::spinOnce();
+        updateMap(gridDownLocal,1);
+        updateMap(gridDownRemote,0);
+        r.sleep();
+    }
     
     return(0);
 

@@ -37,11 +37,8 @@ class Odom
 public:
 	Odom()
 	{
-		current_time1 = ros::Time::now();
-		last_time1 = ros::Time::now();
-		current_time2 = ros::Time::now();
-		last_time2 = ros::Time::now();
-		current_time_out = ros::Time::now();
+		current_time = ros::Time::now();
+		last_time = ros::Time::now();
 
 		ros::NodeHandle nh_odomp("~");
 	    nh_odomp.param("ID_num",ID_num,0);
@@ -50,35 +47,28 @@ public:
 		ss << ID_num;
 		string s;
 		s = ss.str();
+		string vehicle_pose_ss = "/vehicle_pose" + s ;
+		string vehicle_odom_ss = "/vehicle_odom" + s ;
+		string selector_state_ss = "/selector_state" + s ;
 
-		string vehicle_odom = "/vehicle_odom" + s ;
-
-		vehicle_pose1_sub = nh_odom.subscribe("vehicle_pose1",2, &Odom::position1Callback, this);
-		vehicle_pose2_sub = nh_odom.subscribe("vehicle_pose2",2, &Odom::position2Callback, this);
-		odom_pub = nh_odom.advertise<nav_msgs::Odometry>(vehicle_odom, 2);
+		vehicle_pose_sub = nh_odom.subscribe(vehicle_pose_ss,1, &Odom::positionCallback, this);
+		odom_pub = nh_odom.advertise<nav_msgs::Odometry>(vehicle_odom_ss, 2);
+		ss_pub = nh_odom.advertise<std_msgs::Int8>(selector_state_ss, 2);
     	sub_corners1 = nh_odom.subscribe("corners1",1,&Odom::corners1Callback,this);
     	sub_corners2 = nh_odom.subscribe("corners2",1,&Odom::corners2Callback,this);
        	sub_conf1 = nh_odom.subscribe("confidence1",1,&Odom::confidence1Callback,this);
 	   	sub_conf2 = nh_odom.subscribe("confidence2",1,&Odom::confidence2Callback,this);
 
-		x1 = 0.0;
-		y1 = 0.0;
-		x_prev1 = 0.0;
-		y_prev1 = 0.0;
-		th_prev1 = 0.0;
-		th1 = 0.0;
-		vx1 = 0.0;
-		vy1 = 0.0;
-		th1 = 0.0;		
-		x2 = 0.0;
-		y2 = 0.0;
-		x_prev2 = 0.0;
-		y_prev2 = 0.0;
-		th_prev2 = 0.0;
-		th2 = 0.0;
-		vx2 = 0.0;
-		vy2 = 0.0;
-		th2 = 0.0;
+		x = 0.0;
+		y = 0.0;
+		x_prev = 0.0;
+		y_prev = 0.0;
+		th_prev = 0.0;
+		th = 0.0;
+		vx = 0.0;
+		vy = 0.0;
+		th = 0.0;		
+
 		confidence1 = 0.0;
 		confidence2 = 0.0;
 		selector_state = 0;
@@ -190,192 +180,78 @@ public:
 		}
 
 	}
-	void position1Callback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose1_msg) 
+	void positionCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
 	{
-		current_time1 = ros::Time::now();
-		dt1 = (current_time1 - last_time1).toSec();
+		current_time = ros::Time::now();
+		dt = (current_time - last_time).toSec();
 
 		// read msg data
-		double xtemp = vehicle_pose1_msg->x + 1280;
-		double ytemp = vehicle_pose1_msg->y + 960;
-		double th = vehicle_pose1_msg->theta;
+		double xtemp = vehicle_pose_msg->x + 1280;
+		double ytemp = vehicle_pose_msg->y + 960;
+		double th = vehicle_pose_msg->theta;
 
 	    Point2f vehicle_pose_temp;
 
-	    int ID_num = 1;
-	    // transform coordinates
-	    if (ID_num > 1) { // ID = 2, HbirdHcamcamOG
-	                float x = H_camcam_inv.at<double>(0,0) * xtemp + H_camcam_inv.at<double>(0,1) * ytemp + H_camcam_inv.at<double>(0,2);
-	                float y = H_camcam_inv.at<double>(1,0) * xtemp + H_camcam_inv.at<double>(1,1) * ytemp + H_camcam_inv.at<double>(1,2);
-	                float w = H_camcam_inv.at<double>(2,0) * xtemp + H_camcam_inv.at<double>(2,1) * ytemp + H_camcam_inv.at<double>(2,2);
-
-	                vehicle_pose_temp=Point(x/w,y/w);
-
-
-	    } else { // ID_num = 1 , HbirdOG
-
-	                vehicle_pose_temp=Point(xtemp,ytemp);
-
-	    }
+	    vehicle_pose_temp=Point(xtemp,ytemp);
+	
 	    ROS_INFO("vehicle_pose1: ( %f , %f )",xtemp,ytemp);
 
-
-	    x1  = double(vehicle_pose_temp.x);
-	    y1 = double(vehicle_pose_temp.y);
-	    th1 = th;
+	    x  = double(vehicle_pose_temp.x);
+	    y = double(vehicle_pose_temp.y);
+	    th = th;
 		// calculate velocities
-		vx1 = (x1-x_prev1)/dt1;
-		vy1 = (y1-y_prev1)/dt1;
-		vth1 = (th1-th_prev1)/dt1;
+		vx = (x-x_prev)/dt;
+		vy = (y-y_prev)/dt;
+		vth = (th-th_prev)/dt;
 
-		last_time1 = current_time1;
-		x_prev1 = x1;
-		y_prev1 = y1;
-		th_prev1 = th1;
+		last_time = current_time;
+		x_prev = x;
+		y_prev = y;
+		th_prev = th;
 	
 		pose_selector () ;
 
 	}
 
-	void position2Callback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose2_msg) 
-	{
-		current_time2 = ros::Time::now();
-		dt2 = (current_time2 - last_time2).toSec();
-
-		// read msg data
-		double xtemp = vehicle_pose2_msg->x + 1280;
-		double ytemp = vehicle_pose2_msg->y + 960;
-		double th = vehicle_pose2_msg->theta;
-
-	    Point2f vehicle_pose_temp;
-
-
-	    int ID_num = 2;
-	    // transform coordinates
-	    if (ID_num > 1) { // ID = 2, HbirdHcamcamOG
-	                float x = H_camcam_inv.at<double>(0,0) * xtemp + H_camcam_inv.at<double>(0,1) * ytemp + H_camcam_inv.at<double>(0,2);
-	                float y = H_camcam_inv.at<double>(1,0) * xtemp + H_camcam_inv.at<double>(1,1) * ytemp + H_camcam_inv.at<double>(1,2);
-	                float w = H_camcam_inv.at<double>(2,0) * xtemp + H_camcam_inv.at<double>(2,1) * ytemp + H_camcam_inv.at<double>(2,2);
-
-	                vehicle_pose_temp=Point(x/w,y/w);
-
-
-	    } else { // ID_num = 1 , HbirdOG
-
-	                vehicle_pose_temp=Point(xtemp,ytemp);
-
-	    }
-	    ROS_INFO("vehicle_pose2: ( %f , %f )",xtemp,ytemp);
-
-
-	    x2  = double(vehicle_pose_temp.x);
-	    y2 = double(vehicle_pose_temp.y);
-	    th2 = th;
-		// calculate velocities
-		vx2 = (x2-x_prev2)/dt2;
-		vy2 = (y2-y_prev2)/dt2;
-		vth2 = (th2-th_prev2)/dt2;
-
-		last_time2 = current_time2;
-		x_prev2 = x2;
-		y_prev2 = y2;
-		th_prev2 = th2;
-
-		pose_selector () ;
-	}
-
 	void pose_selector () 
 	{
 		if (confidence1 || confidence2 > 0) {
-	//		if confidence1 >
 			switch (selector_state) 					
 			{
-				case 1:
+				case 1:// last selection was GS1
 					if (confidence1 >= confidence2) {
-
-						x_out = x1;
-						y_out = y1;
-						th_out = th1;
-						vx_out = vx1;
-						vy_out = vy1;
-						vth_out = vth1;
-						current_time_out = current_time1;
 						selector_state = 1;
-
 					} else { //confidence2 > confidence1
-						x_out = x2;
-						y_out = y2;
-						th_out = th2;
-						vx_out = vx2;
-						vy_out = vy2;
-						vth_out = vth2;
-						current_time_out = current_time2;
 						selector_state = 2;
-
 					} 					
 					break;
-				case 2:
+				case 2: // last selection was GS2
 					if (confidence1 > confidence2) {
-
-						x_out = x1;
-						y_out = y1;
-						th_out = th1;
-						vx_out = vx1;
-						vy_out = vy1;
-						vth_out = vth1;
-						current_time_out = current_time1;
 						selector_state = 1;
-
 					} else { //confidence2 >= confidence1
-						x_out = x2;
-						y_out = y2;
-						th_out = th2;
-						vx_out = vx2;
-						vy_out = vy2;
-						vth_out = vth2;
-						current_time_out = current_time2;
 						selector_state = 2;
-
 					} 
 					break;
-				default : //(0)
+				default : //(0) give GS1 priority
 					if (confidence1 >= confidence2) {
-
-						x_out = x1;
-						y_out = y1;
-						th_out = th1;
-						vx_out = vx1;
-						vy_out = vy1;
-						vth_out = vth1;
-						current_time_out = current_time1;	
 						selector_state = 1;
-
-
 					} else { //confidence2 > confidence1
-						x_out = x2;
-						y_out = y2;
-						th_out = th2;
-						vx_out = vx2;
-						vy_out = vy2;
-						vth_out = vth2;
-						current_time_out = current_time2;
 						selector_state = 2;
-
 					} 
 					break;
 			}
 
 			// PUBLISH ODOM
 
-			geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromYaw(th_out);
+			geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromYaw(th);
 
 			geometry_msgs::TransformStamped odom_trans;
-			odom_trans.header.stamp = current_time_out;
+			odom_trans.header.stamp = current_time;
 			odom_trans.header.frame_id = "odom";
 			odom_trans.child_frame_id = "vehicle";
 
-			odom_trans.transform.translation.x = x_out;
-			odom_trans.transform.translation.y = y_out;
+			odom_trans.transform.translation.x = x;
+			odom_trans.transform.translation.y = y;
 			odom_trans.transform.translation.z = 0.0;
 			odom_trans.transform.rotation = odom_quat;
 
@@ -384,20 +260,20 @@ public:
 
 			//next, we'll publish the odometry message over ROS
 			nav_msgs::Odometry odom;
-			odom.header.stamp = current_time_out;
+			odom.header.stamp = current_time;
 			odom.header.frame_id = "odom";
 
 			//set the position
-			odom.pose.pose.position.x = x_out;
-			odom.pose.pose.position.y = y_out;
+			odom.pose.pose.position.x = x;
+			odom.pose.pose.position.y = y;
 			odom.pose.pose.position.z = 0.0;
 			odom.pose.pose.orientation = odom_quat;
 
 			//set the velocity
 			odom.child_frame_id = "vehicle";
-			odom.twist.twist.linear.x = vx_out;
-			odom.twist.twist.linear.y = vy_out;
-			odom.twist.twist.angular.z = vth_out;
+			odom.twist.twist.linear.x = vx;
+			odom.twist.twist.linear.y = vy;
+			odom.twist.twist.angular.z = vth;
 
 			//publish the message
 			if (selector_state == ID_num) 
@@ -409,18 +285,19 @@ public:
 
 		} else { selector_state = 0 ; }
 		
+		std_msgs::Int8 selector_state_msg;
+		selector_state_msg.data = selector_state;
+		ss_pub.publish(selector_state_msg);
 
 	}
 
 
 private:
 	ros::NodeHandle nh_odom;
-	ros::Time current_time1, last_time1;
-	ros::Time current_time2, last_time2;
-	ros::Time current_time_out;
+	ros::Time current_time, last_time;
 	ros::Publisher odom_pub;
-	ros::Subscriber vehicle_pose1_sub;
-	ros::Subscriber vehicle_pose2_sub;
+	ros::Publisher ss_pub;
+	ros::Subscriber vehicle_pose_sub;
 	tf::TransformBroadcaster odom_broadcaster;
 	ros::Subscriber sub_corners2;
 	ros::Subscriber sub_corners1;
@@ -441,38 +318,20 @@ private:
 	Mat H_cambird;
 	Mat H_camcam_inv;
 
-	double x1;
-	double y1;
-	double x_prev1;
-	double y_prev1;
-	double th_prev1;
-	double th1;
-	double vx1;
-	double vy1;
-	double vth1;
-	double dt1;
-	
-	double x2;
-	double y2;
-	double x_prev2;
-	double y_prev2;
-	double th_prev2;
-	double th2;
-	double vx2;
-	double vy2;
-	double vth2;
-	double dt2;
+	double x;
+	double y;
+	double x_prev;
+	double y_prev;
+	double th_prev;
+	double th;
+	double vx;
+	double vy;
+	double vth;
+	double dt;
 	
 	double confidence1;
 	double confidence2;
 	
-	double x_out;
-	double y_out;
-	double th_out;
-	double vx_out;
-	double vy_out;
-	double vth_out;
-
 	int ID_num;
 	int selector_state;
 };

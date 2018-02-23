@@ -506,41 +506,24 @@ public:
 	// }
 
 	void updateMap(Mat &temp, int ID) {
-    	Mat worldMaptemp1(temp.rows*3,temp.cols*3,temp.type(),Scalar(0));
-    	Mat worldMaptemp2(temp.rows*3,temp.cols*3,temp.type(),Scalar(0));
+    	Mat worldMaptemp(temp.rows*3,temp.cols*3,temp.type(),Scalar(0));
     	if (counter < 1) { //zero out
-    		worldMaptemp1.copyTo(worldMap);
+    		worldMaptemp.copyTo(worldMap);
     		worldMap.copyTo(worldMap1);
     		worldMap.copyTo(worldMap2);
     	}
 	   	worldMap_tic++;;
     	//else, for 2 count, add images from ID 1 and 2
 	    if (ID > 1) { // ID = 2, HbirdHcamcamOG
-	        warpPerspective(temp , temp, H_camcam, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-    	    
+	        warpPerspective(temp , temp, H_camcam, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0)); 	    
     	    cout << "tranform performed" << endl; 
-    	    //warpPerspective(temp , temp, H_cambird, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-	   		temp.copyTo(worldMaptemp1(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
+	   		worldMap1.setTo(Scalar(0));
+	   		temp.copyTo(worldMap1(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
 
-    		//temp.copyTo(worldMaptemp1(Rect(temp.cols+(((int)(corners1_pts[0].x/scale_factor))-((int)(corners2_pts[0].x/scale_factor))),temp.rows+((int)(corners1_pts[0].y/scale_factor)-((int)(corners2_pts[0].y/scale_factor))),160,120)));
-    
-    		addWeighted(worldMap1,0.5,worldMaptemp1,0.5,0.0,worldMap1);
-    		//worldMap = worldMaptemp + worldMap;
-    		//worldMaptemp.copyTo(worldMap);
+	    } else { // ID_num = 1 
+	   		worldMap2.setTo(Scalar(0));
+    		temp.copyTo(worldMap2(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
 
-	    } else { // ID_num = 1 , HbirdOG
-	    	//upsampleFrame(temp);
-
-            //warpPerspective(temp , temp, H_cambird, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(255));
-			//downsampleFrame(temp);
-
-    		temp.copyTo(worldMaptemp2(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
-            //warpPerspective(worldMaptemp , worldMaptemp, H_cambird, worldMaptemp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(255));
-
-    		addWeighted(worldMap2,0.5,worldMaptemp2,0.5,0.0,worldMap2);
-//    		worldMap = worldMaptemp + worldMap;
-
-    		//worldMaptemp.copyTo(worldMap);
     	}
 
     	// publish and reset
@@ -562,7 +545,7 @@ public:
 			else if (k==27) // reinitialize background : case 2 and key_cmd int value 2
 			{
 				key_cmd_msg.data = 2; 
-				ROS_INFO("checkpoint 1");
+				
 
 			}
 			else {key_cmd_msg.data = 0;}
@@ -577,18 +560,6 @@ public:
 	    	worldMap_bridge.toImageMsg(worldMap_msg);
 	    	pub_worldMap.publish(worldMap_msg);
 
-			// int width = 160 ;
-			// int height = 120 ;
-
-			// resize(worldMaptemp1, worldMaptemp1, Size(width, height));
-
-			// translateImg(worldMaptemp1, 800, 1000); // 2000 is usual
-
-			// warp_crops(worldMaptemp1, worldMaptemp2);
-
-			// namedWindow("translated 1st image", 0);
-			// imshow("translated 1st image", worldMaptemp1);
-			// waitKey(0);
 		}
 
 
@@ -627,8 +598,6 @@ public:
 
 	    getPerspectives();
 
-
-
 		for (int n=0;n<=3; n++) {
 
 	        float x = H_camcam_inv.at<double>(0,0) * corners2_vec[n].x + H_camcam_inv.at<double>(0,1) * corners2_vec[n].y + H_camcam_inv.at<double>(0,2);
@@ -664,8 +633,6 @@ public:
 	    
 	    frame = cv_ptr -> image;
 
-	    //warpPerspective(frame , frame, H_cambird, frame.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-	
 	    // update mouseclick events
 	    if (goal_points.size() > 0 ) 
 		{
@@ -673,12 +640,6 @@ public:
 		}
 
 		updateMap(frame,1);
-
-		//downsampleFrame(frame);
-
-
-
-        //publish MSSP msg 
 
 		img_bridge = cv_bridge::CvImage(header,sensor_msgs::image_encodings::BGR8,frame);
 		img_bridge.toImageMsg(img_msg);
@@ -709,13 +670,8 @@ public:
 	    header2.stamp = ros::Time::now(); // time
 	    frame2 = cv_ptr2 -> image;
 
-		//warpPerspective(frame2 , frame2, H_camcam, frame.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-	    //warpPerspective(frame2 , frame2, H_cambird, frame2.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));
-
 		ROS_INFO("GROUNDSTATION2 FRAME COLLECTED, size : %i x %i" , frame2.cols, frame2.rows);
 		updateMap(frame2,2);
-
-		//downsampleFrame2(frame2);
 
 		img_bridge2 = cv_bridge::CvImage(header2,sensor_msgs::image_encodings::BGR8,frame2);
 		img_bridge2.toImageMsg(img_msg2);

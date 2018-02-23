@@ -71,7 +71,7 @@ public:
 		string s;
 		s = ss.str();
 
-		string image_rect_color = "/camera" + s + "/image_rect_color" ;
+		string image_rect_color = "/camera1/image_rect_color" ;
 		string ground_station_rgb = "/ground_station_rgb" + s ; 
 		string ground_station_rgb_HD = "/ground_station_rgb_HD" + s ; 
 
@@ -1071,17 +1071,17 @@ public:
 			rgb_arm_bool_pub.publish(arm_bool_msg);
 
 			// Output modified video stream
-			if (framedrop_count >= 4) 
-		    {
+			//if (framedrop_count >= 5) 
+		    //{
 		    	framedrop_count = 0;
 				img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, frameoutDown);
 				img_bridge.toImageMsg(img_msg); // from cv _bridge to sensor_msgs::Image
 				rgb_pub_.publish(img_msg); 
 
-				img_bridge_HD = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, objectFeed);
-				img_bridge_HD.toImageMsg(img_msg_HD); // from cv _bridge to sensor_msgs::Image
-				rgb_pub_HD.publish(img_msg_HD); 
-			}
+				//img_bridge_HD = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, objectFeed);
+				//img_bridge_HD.toImageMsg(img_msg_HD); // from cv _bridge to sensor_msgs::Image
+				//rgb_pub_HD.publish(img_msg_HD); 
+			//}
 			// send high res occupancy grid
 			occupancyHigh_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8,gridDownHigh);
 			//send low res occupancy grid
