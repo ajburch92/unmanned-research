@@ -75,7 +75,7 @@ public:
 		string ground_station_rgb = "/ground_station_rgb" + s ; 
 		string ground_station_rgb_HD = "/ground_station_rgb_HD" + s ; 
 
-		string conv_fac = "/conv_fac" + s ;
+		string conv_fac_ss = "/conv_fac" + s ;
 		string occupancyGridLow = "/occupancyGridLow" + s ;
 		string occupancyGridHigh = "/occupancyGridHigh" + s ;
 		string vehicle_pose = "/vehicle_pose" + s ;
@@ -87,7 +87,7 @@ public:
 		rgb_pub_ = it_rgb.advertise(ground_station_rgb,1);
 		rgb_pub_HD = it_rgb.advertise(ground_station_rgb_HD,1);
 
-		conv_fac_pub = nh_rgb.advertise<std_msgs::Float64>(conv_fac,2);
+		conv_fac_pub = nh_rgb.advertise<std_msgs::Float64>(conv_fac_ss,2);
 		occupancyGridLow_pub = it_rgb.advertise(occupancyGridLow , 1);
 		occupancyGridHigh_pub = it_rgb.advertise(occupancyGridHigh , 1);
 		rgb_vehicle_pub = nh_rgb.advertise<geometry_msgs::Pose2D>(vehicle_pose,2);
@@ -178,27 +178,22 @@ public:
 	}
 
 	void checkerboardAnalysis() {
-		
-		// send checkerboard coordinates, conversion factor
 
-		//checkerboard_PXwidth = ((transImgPts[1] - transImgPts[0]) + (transImgPts[1] - transImgPts[0]))/2; 
-		//int widthDif =  (transImgPts[1] - transImgPts[0]) - (transImgPts[1] - transImgPts[0]);
+		checkerboard_PXwidth = (int)((imgPts[1] - imgPts[0]) + (imgPts[3] - imgPts[2]))/2; 
 
-		//checkerboard_PXheight = ((transImgPts[0] - transImgPts[2]) + (transImgPts[1] - transImgPts[3]))/2;
-		//int heightDif =  (transImgPts[1] - transImgPts[0]) - (transImgPts[1] - transImgPts[0]);
-
-		//ROS_INFO("heightDif = %i" , heightDif);
-		//ROS_INFO("widthDif = %i" , widthDif); 
+		checkerboard_PXheight = (int)((imgPts[2] - imgPts[0]) + (imgPts[3] - imgPts[1]))/2;
 			
-		height_factor = checkerboard_height / double(checkerboard_PXheight) ;
-		width_factor =  checkerboard_width / double(checkerboard_PXwidth) ; // convert to Meters
+		double height_factor = checkerboard_height / double(checkerboard_PXheight) ;
+		double width_factor =  checkerboard_width / double(checkerboard_PXwidth) ; // convert to Meters
+		ROS_INFO("height_factor = %f  :  width_factor = %f" , height_factor , width_factor);
+
+		conv_fac = (width_factor + height_factor) / 2;
+		ROS_INFO("conv_fac = %f" , conv_fac);
 
 		std_msgs::Float64 conv_fac_msg;
-	    conv_fac_msg.data = (width_factor + height_factor) / 2;
+	    conv_fac_msg.data = conv_fac;
 	    conv_fac_pub.publish(conv_fac_msg);
 
-		ROS_INFO("height_factor = %f" , height_factor);
-	    ROS_INFO("width_factor = %f" , width_factor); 
 	}
 
 	void downsampleFrameOut(Mat frame) {
@@ -481,6 +476,8 @@ public:
 
 	          objectFound = true;
 
+	          area_total = area;
+
 	        }
 	        else { 
 	        	objectFound = false; 
@@ -538,6 +535,18 @@ public:
 		} else { overlap_state = 0;}
 	}
 
+	void confidence_calc() {
+		float a = 0.33;
+		float b = 0.33;
+		float c = 0.33;
+
+		confidence = consecutive_tracks * a + detection_area * b + detection_area * c; 
+		
+		std_msgs::Float64 confidence_msg;
+		confidence_msg.data = confidence;
+		rgb_confidence_pub.publish(confidence_msg);
+	}
+
 	void trackObjects(Mat threshold, Mat &frame,vector<Object> objects, string name) { //object tracking
 
 		Mat temp;
@@ -564,7 +573,9 @@ public:
 
 	        //for (int index = 0; index < contours.size(); index++) { // for all objects
 			Moments moment = moments((cv::Mat)contours[index]); //moments method
-			double area = moment.m00;
+			double area = moment.m00; //px
+
+
 
 			//find pose
 			x_temp = (int)moment.m10/area;       
@@ -688,6 +699,9 @@ public:
 		if (local_bool > 0) { // vehicle_detected or projected, send pose.
 
 			if (name=="vehicle") { // yellow vehicle state
+				
+				// calc and send confidence
+				confidence_calc();
 
 				vehicle_pose = Point((int)x, (int)y);
 		
@@ -873,7 +887,7 @@ public:
 				corners_pub.publish(poseArray); 
 				ROS_INFO("corners published");
 
-
+	    		checkerboardAnalysis();
 				/*
 				imgPts_vec.push_back(Point2f(imgPts[0].x,imgPts[0].y));
 				imgPts_vec.push_back(Point2f(imgPts[1].x,imgPts[1].y));
@@ -887,7 +901,7 @@ public:
 
 	    		perspectiveTransform( imgPts_vec,transImgPts_vec, H2);
 				// send checkerboard coordinates, conversion factor
-	    		//checkerboardAnalysis();
+
 
 	    		float x = H2.at<double>(0,0) * imgPts[0].x + H2.at<double>(0,1) * imgPts[0].y + H2.at<double>(0,2);
 	    		float y = H2.at<double>(1,0) * imgPts[0].x + H2.at<double>(1,1) * imgPts[0].y + H2.at<double>(1,2);
@@ -1091,10 +1105,6 @@ public:
 			occupancyGridHigh_pub.publish(occupancyGridHigh_msg);
 			occupancyLow_bridge.toImageMsg(occupancyGridLow_msg);
 			occupancyGridLow_pub.publish(occupancyGridLow_msg);
-
-			std_msgs::Float64 confidence_msg;
-			confidence_msg.data = confidence;
-			rgb_confidence_pub.publish(confidence_msg);
 
 			counter++;
 			framedrop_count++;
@@ -1307,7 +1317,6 @@ private:
 	vector<Point> pose_poly;
 
 	int arm_bool = 0;
-	double confidence = 0;
 	int ID_num ;
 	int overlap_state = 0;
 
@@ -1316,6 +1325,13 @@ private:
 
 	int trajectory_state = 0;
 	int projection_state = 0;
+
+	double confidence = 0;
+	int consecutive_tracks = 0;
+	double detection_area = 0;
+	double detection_res = 0;
+	double area_total = 0;
+	double conv_fac = 0;
 };
 
 
