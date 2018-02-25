@@ -62,8 +62,8 @@ void onMouse( int evt, int x, int y, int flags, void *param)
 	} else if (evt == CV_EVENT_RBUTTONDOWN)
 	{
 		goal_points.clear();
-    	vector_wp.clear();
-    	target_wp = Point(0,0);
+    	//vector_wp.clear();
+    	//target_wp = Point(0,0);
 
 		ROS_INFO("right click registered");
 

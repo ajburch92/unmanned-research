@@ -24,7 +24,7 @@
 #include <opencv2/video/background_segm.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
 
-#define LOS_RADIUS 100 //currently in pixels
+#define LOS_RADIUS 15 //currently in pixels
 
 using namespace std;
 using namespace cv;
@@ -53,10 +53,10 @@ image_transport::Publisher pub_worldOG;
 Point vehicle_pose;
 
 // start and finish locations
-int xA = 0;
-int yA = 0;
-int xB = 110 / scale_factor;
-int yB = 0;
+int xA = 160;
+int yA = 240;
+int xB = 160+20 ;
+int yB = 240;
 
 int subgoal = 0;
 
@@ -408,10 +408,11 @@ void goal_outCallback (const geometry_msgs::PoseArray::ConstPtr& goal_out_pose_m
     {
     	subgoal = 0;
     } */
-
     while (1)
     {
-      euclidean_d = sqrt(((((vehicle_pose.x)-goal_out_pose_msg->poses[subgoal].position.x)*((vehicle_pose.x)-goal_out_pose_msg->poses[subgoal].position.x)) + (((vehicle_pose.y)-goal_out_pose_msg->poses[subgoal].position.y)*((vehicle_pose.y)-goal_out_pose_msg->poses[subgoal].position.y))));
+              euclidean_d = distCalc(Point(xA,yA),Point(goal_out_pose_msg->poses[subgoal].position.x,goal_out_pose_msg->poses[subgoal].position.y));
+
+      //euclidean_d = sqrt(((((xA)-goal_out_pose_msg->poses[subgoal].position.x)*((xA)-goal_out_pose_msg->poses[subgoal].position.x)) + (((yA)-goal_out_pose_msg->poses[subgoal].position.y)*((yA)-goal_out_pose_msg->poses[subgoal].position.y))));
       if (euclidean_d > LOS_RADIUS) // continue to waypoint
       {
 	    break;
@@ -771,8 +772,8 @@ int main(int argc, char **argv)
         for(int x=0;x<n;x++) grid[x][y]=0;
     }
 
-	vehicle_pose.x = 0;
-	vehicle_pose.y = 0;
+	vehicle_pose.x = xA;
+	vehicle_pose.y = yA;
 
     undistorted_pts[0].x=0;
     undistorted_pts[1].x=board_w-1;
