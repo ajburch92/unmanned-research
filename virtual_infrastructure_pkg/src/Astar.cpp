@@ -272,6 +272,76 @@ string pathFind( const int & xStart, const int & yStart,
 }
 
 
+double distCalc(Point2f p1, Point2f p2)
+{
+    double x = p1.x - p2.x;
+    double y = p1.y - p2.y;
+
+    double dist;
+    dist = pow(x, 2) + pow(y, 2);       //calculate Euclidean distance
+    dist = sqrt(dist);                  
+
+    return dist;
+}
+
+double getAffineScale(vector<Point2f> c1, vector<Point2f> c2) 
+{
+
+    double h1L = distCalc(c1[0],c1[2]);
+    double h1R = distCalc(c1[1],c1[3]);
+    double h2L = distCalc(c2[0],c2[2]);
+    double h2R = distCalc(c2[1],c2[3]);
+    double w1T = distCalc(c1[0],c1[1]);
+    double w1B = distCalc(c1[2],c1[3]);
+    double w2T = distCalc(c2[0],c2[1]);
+    double w2B = distCalc(c2[2],c2[3]);
+    
+    double h1 = (h1L + h1R)/2;
+    double h2 = (h2L + h2R)/2;
+    
+    double w1 = (w1T + w1B)/2;
+    double w2 = (w2T+ w2B)/2;
+    
+    double scale = ((h1/h2) + (w1/w2))/2;
+}
+
+
+void affineImg(vector<Point2f> c1, vector<Point2f> c2, double scale, Mat &temp)
+{
+
+   
+   Point2f srcTri[3];
+   Point2f dstTri[3];
+
+   Mat rot_mat( 2, 3, CV_32FC1 );
+   Mat warp_mat( 2, 3, CV_32FC1 );
+   Mat src, warp_dst, warp_rotate_dst;
+
+   /// Load the image
+   temp.copyTo(src);
+
+   /// Set the dst image the same type and size as src
+   warp_dst = Mat::zeros( src.rows, src.cols, src.type() );
+
+   /// Set your 3 points to calculate the  Affine Transform
+   srcTri[0] = c2[0];
+   srcTri[1] = c2[1];
+   srcTri[2] = c2[2];
+
+   dstTri[0] = c1[0];
+   dstTri[1] = c1[1];
+   dstTri[2] = c1[2];
+
+   /// Get the Affine Transform
+   warp_mat = getAffineTransform( srcTri, dstTri );
+
+   /// Apply the Affine Transform just found to the src image
+   warpAffine( src, warp_dst, warp_mat, warp_dst.size() );
+   warp_dst.copyTo(temp);
+
+}
+
+
 void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
 {
 	double xtemp, ytemp;
@@ -386,18 +456,27 @@ void updateMap(Mat &temp, bool local) {
     worldMap_tic++;;
     //else, for 2 count, add images from ID 1 and 2
     if (local > 0) { //local
+
         MapLocal.setTo(Scalar(0));
         temp.copyTo(MapLocal(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
-        warpPerspective(MapLocal , MapLocal, H_camcam, MapLocal.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));      
-        cout << "tranform performed" << endl; 
+
     } else { //remote
+
         MapRemote.setTo(Scalar(0));
         temp.copyTo(MapRemote(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
+        cout << "c1: " << corners1_vec << endl;
+        cout << "c2: "<< corners2_vec << endl;
+        double scale = getAffineScale(corners1_vec, corners2_vec);
+        cout << "scale: "<< scale << endl;
+        affineImg(corners1_vec, corners2_vec,scale, MapRemote);
+        cout << "affine done" << endl;
+
     }
 
     if (worldMap_tic >= 2) {
         worldMap_tic = 0;
-        addWeighted(MapLocal,0.5,MapRemote,0.5,0.0,worldMap);
+        addWeighted(MapLocal,0.6,MapRemote,0.6,0.0,worldMap);
+        worldMap.copyTo(worldMapPrev);
         std_msgs::Header header;
         header.stamp = ros::Time::now();
         cv_bridge::CvImage worldOG_bridge;
@@ -603,6 +682,7 @@ void corners1Callback (const geometry_msgs::PoseArray::ConstPtr& corners1_msg)
     int size = corners1_msg->poses.size();
     for (int i=0;i<size;i++)
     {
+//        corners1_vec.push_back(Point2f(160+corners1_msg->poses[i].position.x/scale_factor,120+corners1_msg->poses[i].position.y/scale_factor));
         corners1_vec.push_back(Point2f(corners1_msg->poses[i].position.x,corners1_msg->poses[i].position.y));
         corners1_pts[i] = corners1_vec[i];    
     }
@@ -619,6 +699,7 @@ void corners2Callback (const geometry_msgs::PoseArray::ConstPtr& corners2_msg)
     int size = corners2_msg->poses.size();
     for (int i=0;i<size;i++)
     {
+//        corners2_vec.push_back(Point2f(160+(int)corners2_msg->poses[i].position.x/scale_factor,120+(int)corners2_msg->poses[i].position.y/scale_factor));        
         corners2_vec.push_back(Point((int)corners2_msg->poses[i].position.x,(int)corners2_msg->poses[i].position.y));
         corners2_pts[i] = corners2_vec[i];    
     }
@@ -629,6 +710,11 @@ void corners2Callback (const geometry_msgs::PoseArray::ConstPtr& corners2_msg)
     getPerspectives();
 
     for (int n=0;n<=3; n++) {
+
+     // float x = H_camcam_inv.at<double>(0,0) * corners2_msg->poses[n].position.x + H_camcam_inv.at<double>(0,1) * corners2_msg->poses[n].position.y + H_camcam_inv.at<double>(0,2);
+     // float y = H_camcam_inv.at<double>(1,0) * corners2_msg->poses[n].position.x + H_camcam_inv.at<double>(1,1) * corners2_msg->poses[n].position.y + H_camcam_inv.at<double>(1,2);
+     // float w = H_camcam_inv.at<double>(2,0) * corners2_msg->poses[n].position.x + H_camcam_inv.at<double>(2,1) * corners2_msg->poses[n].position.y + H_camcam_inv.at<double>(2,2);
+
 
         float x = H_camcam_inv.at<double>(0,0) * corners2_vec[n].x + H_camcam_inv.at<double>(0,1) * corners2_vec[n].y + H_camcam_inv.at<double>(0,2);
         float y = H_camcam_inv.at<double>(1,0) * corners2_vec[n].x + H_camcam_inv.at<double>(1,1) * corners2_vec[n].y + H_camcam_inv.at<double>(1,2);
@@ -696,6 +782,15 @@ int main(int argc, char **argv)
     undistorted_pts[1].y=0;
     undistorted_pts[2].y=board_h-1;
     undistorted_pts[3].y=board_h-1;
+
+    corners1_vec.push_back(Point2f(undistorted_pts[0].x,undistorted_pts[0].y));
+    corners1_vec.push_back(Point2f(undistorted_pts[1].x,undistorted_pts[1].y));
+    corners1_vec.push_back(Point2f(undistorted_pts[2].x,undistorted_pts[2].y));
+    corners1_vec.push_back(Point2f(undistorted_pts[3].x,undistorted_pts[3].y));
+    corners2_vec.push_back(Point2f(undistorted_pts[0].x,undistorted_pts[0].y));
+    corners2_vec.push_back(Point2f(undistorted_pts[1].x,undistorted_pts[1].y));
+    corners2_vec.push_back(Point2f(undistorted_pts[2].x,undistorted_pts[2].y));
+    corners2_vec.push_back(Point2f(undistorted_pts[3].x,undistorted_pts[3].y));
 
     H_camcam = getPerspectiveTransform(undistorted_pts, undistorted_pts);
     H_cambird = getPerspectiveTransform(undistorted_pts, undistorted_pts);
