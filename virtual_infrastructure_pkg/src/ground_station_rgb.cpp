@@ -71,7 +71,7 @@ public:
 		string s;
 		s = ss.str();
 
-		string image_rect_color = "/camera1/image_rect_color" ;
+		string image_rect_color = "/camera" + s + "/image_rect_color" ;
 		string ground_station_rgb = "/ground_station_rgb" + s ; 
 		string ground_station_rgb_HD = "/ground_station_rgb_HD" + s ; 
 
@@ -179,9 +179,9 @@ public:
 
 	void checkerboardAnalysis() {
 
-		checkerboard_PXwidth = (int)((imgPts[1] - imgPts[0]) + (imgPts[3] - imgPts[2]))/2; 
+		checkerboard_PXwidth = (int)((imgPts[1].x - imgPts[0].x) + (imgPts[3].x - imgPts[2].x))/2; 
 
-		checkerboard_PXheight = (int)((imgPts[2] - imgPts[0]) + (imgPts[3] - imgPts[1]))/2;
+		checkerboard_PXheight = (int)((imgPts[2].y - imgPts[0].y) + (imgPts[3].y - imgPts[1].y))/2;
 			
 		double height_factor = checkerboard_height / double(checkerboard_PXheight) ;
 		double width_factor =  checkerboard_width / double(checkerboard_PXwidth) ; // convert to Meters
@@ -1085,8 +1085,8 @@ public:
 			rgb_arm_bool_pub.publish(arm_bool_msg);
 
 			// Output modified video stream
-			//if (framedrop_count >= 5) 
-		    //{
+			if (framedrop_count >= 3) 
+		    {
 		    	framedrop_count = 0;
 				img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, frameoutDown);
 				img_bridge.toImageMsg(img_msg); // from cv _bridge to sensor_msgs::Image
@@ -1095,7 +1095,7 @@ public:
 				//img_bridge_HD = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, objectFeed);
 				//img_bridge_HD.toImageMsg(img_msg_HD); // from cv _bridge to sensor_msgs::Image
 				//rgb_pub_HD.publish(img_msg_HD); 
-			//}
+			}
 			// send high res occupancy grid
 			occupancyHigh_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8,gridDownHigh);
 			//send low res occupancy grid
@@ -1105,7 +1105,7 @@ public:
 			occupancyGridHigh_pub.publish(occupancyGridHigh_msg);
 			occupancyLow_bridge.toImageMsg(occupancyGridLow_msg);
 			occupancyGridLow_pub.publish(occupancyGridLow_msg);
-
+			
 			counter++;
 			framedrop_count++;
 			ROS_INFO("counter=%i",counter);

@@ -1,0 +1,37 @@
+<launch>  
+      
+      <node name="image_proc" 
+            pkg="image_proc" 
+            type="image_proc"
+            ns="camera2" >
+      </node>
+
+      <node pkg="virtual_infrastructure_pkg"
+            type="ground_station_rgb_node"
+            name="ground_station_rgb_node2">
+            <param name="ID_num" value="2" />
+
+      </node>
+
+      <node pkg="virtual_infrastructure_pkg"
+            type="vehicle_odom"
+            name="vehicle_odom2">
+            <param name="ID_num" value="2" />
+
+      </node>
+
+      <node pkg="virtual_infrastructure_pkg"
+            type="vehicle_planner"
+            name="vehicle_planner2">
+            <param name="ID_num" value="2" />
+
+      </node>
+
+      <node pkg="virtual_infrastructure_pkg"
+            type="astar_planner"
+            name="astar_planner2">
+            <param name="ID_num" value="2" />
+
+      </node>
+</launch>
+

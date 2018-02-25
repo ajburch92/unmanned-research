@@ -388,7 +388,7 @@ void updateMap(Mat &temp, bool local) {
     if (local > 0) { //local
         MapLocal.setTo(Scalar(0));
         temp.copyTo(MapLocal(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
-        warpPerspective(MapLocal , MapLocal, H_camcam, MapLocal.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(255));      
+        warpPerspective(MapLocal , MapLocal, H_camcam, MapLocal.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0));      
         cout << "tranform performed" << endl; 
     } else { //remote
         MapRemote.setTo(Scalar(0));

@@ -84,8 +84,8 @@ public:
 
     sub_corners1 = nh.subscribe("corners1",1,&DataProcessor::corners1Callback,this);
     sub_corners2 = nh.subscribe("corners2",1,&DataProcessor::corners2Callback,this);
-	sub_rgb2 = it_nh.subscribe("/ground_station_rgb2",5, &DataProcessor::rgbFeed2Callback, this); 
-	sub_rgb1 = it_nh.subscribe("/ground_station_rgb1",5, &DataProcessor::rgbFeed1Callback, this); 
+	sub_rgb2 = it_nh.subscribe("/ground_station_rgb2",1, &DataProcessor::rgbFeed2Callback, this); 
+	sub_rgb1 = it_nh.subscribe("/ground_station_rgb1",1, &DataProcessor::rgbFeed1Callback, this); 
 	sub_target_wp1 = nh.subscribe("/target_wp1",5, &DataProcessor::targetwp1Callback,this);
 	sub_vector_wp1 = nh.subscribe("/wp_pose1",5, &DataProcessor::vectorwp1Callback,this);
 	sub_target_angle1 = nh.subscribe("/target_angle1",5, &DataProcessor::targetAngle1Callback,this);
@@ -111,6 +111,7 @@ public:
 
     H_camcam = getPerspectiveTransform(undistorted_pts, undistorted_pts);
     H_cambird = getPerspectiveTransform(undistorted_pts, undistorted_pts);
+    getPerspectives();
 	cout << H_camcam << endl;
 	cout << H_cambird << endl;
 	
@@ -515,10 +516,43 @@ public:
 	   	worldMap_tic++;;
     	//else, for 2 count, add images from ID 1 and 2
 	    if (ID > 1) { // ID = 2, HbirdHcamcamOG
-	        warpPerspective(temp , temp, H_camcam, temp.size(), WARP_INVERSE_MAP | INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0)); 	    
     	    cout << "tranform performed" << endl; 
 	   		worldMap1.setTo(Scalar(0));
-	   		temp.copyTo(worldMap1(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
+	   		worldMaptemp.setTo(Scalar(0));
+	   		//temp.copyTo(worldMaptemp(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
+	        for (int xt = 1; xt <= 160; xt++)
+       		{
+            	for (int yt = 1; yt<=120; yt++)
+            	{   
+	                cv::Vec3b pix = temp.at<cv::Vec3b>(yt,xt);
+
+		        	float x = H_camcam_inv.at<double>(0,0) * xt + H_camcam_inv.at<double>(0,1) * yt + H_camcam_inv.at<double>(0,2);
+		        	float y = H_camcam_inv.at<double>(1,0) * xt + H_camcam_inv.at<double>(1,1) * yt + H_camcam_inv.at<double>(1,2);
+		        	float w = H_camcam_inv.at<double>(2,0) * xt + H_camcam_inv.at<double>(2,1) * yt + H_camcam_inv.at<double>(2,2);
+		        	float xf = x/w;
+		        	float yf = y/w;
+		        	cout << x << "," << y << "," <<  w << endl;
+
+		        	cout << xt << "," << yt << endl;
+
+		        	cout << xf << "," << yf << endl;
+
+		        	//cout << "original : " << temp.at<cv::Vec3b>(yt,xt) << endl;
+		        	
+		        	if (xf < 480 && yf < 360){
+			        	worldMap1.at<cv::Vec3b>((int)yf,(int)xf)[0] = pix[0];
+		            	worldMap1.at<cv::Vec3b>((int)yf,(int)xf)[1] = pix[1];
+		            	worldMap1.at<cv::Vec3b>((int)yf,(int)xf)[2] = pix[2];
+       		        	//cout << "transformed : " << worldMap1.at<cv::Vec3b>(yf,xf) << endl;
+
+		            }
+	           	}
+        	}
+
+
+			//warpPerspective(worldMaptemp , worldMaptemp, H_camcam_inv, worldMaptemp.size(), INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0)); 	    
+	   		
+	   		//worldMaptemp.copyTo(worldMap1);
 
 	    } else { // ID_num = 1 
 	   		worldMap2.setTo(Scalar(0));
@@ -527,7 +561,7 @@ public:
     	}
 
     	// publish and reset
-    	if (worldMap_tic >= 2) {
+    	//if (worldMap_tic >= 2) {
     		worldMap_tic = 0;
     		addWeighted(worldMap1,0.5,worldMap2,0.5,0.0,worldMap);
 		    drawData(worldMap);
@@ -556,11 +590,11 @@ public:
 	    	header.stamp = ros::Time::now();
 	    	cv_bridge::CvImage worldMap_bridge;
 	    	sensor_msgs::Image worldMap_msg;
-	    	worldMap_bridge = cv_bridge::CvImage(header,sensor_msgs::image_encodings::BGR8, worldMap);
+	    	worldMap_bridge = cv_bridge::CvImage(header,sensor_msgs::image_encodings::BGR8, worldMap1);
 	    	worldMap_bridge.toImageMsg(worldMap_msg);
 	    	pub_worldMap.publish(worldMap_msg);
 
-		}
+		//}
 
 
 	}
@@ -669,13 +703,15 @@ public:
 	    header2.seq = counter2; // user defined counter
 	    header2.stamp = ros::Time::now(); // time
 	    frame2 = cv_ptr2 -> image;
-
-		ROS_INFO("GROUNDSTATION2 FRAME COLLECTED, size : %i x %i" , frame2.cols, frame2.rows);
-		updateMap(frame2,2);
-
+		
 		img_bridge2 = cv_bridge::CvImage(header2,sensor_msgs::image_encodings::BGR8,frame2);
 		img_bridge2.toImageMsg(img_msg2);
 		pub_vis2.publish(img_msg2);
+		
+		ROS_INFO("GROUNDSTATION2 FRAME COLLECTED, size : %i x %i" , frame2.cols, frame2.rows);
+		updateMap(frame2,2);
+
+
 
 	    counter2++;
 	}
