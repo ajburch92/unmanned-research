@@ -35,8 +35,8 @@
 #include <algorithm>
 //msg file headers
 
-#define LOS_RADIUS 10 //currently in pixels
-#define HEADING_LINE_THICKNESS 2
+#define LOS_RADIUS 15 //currently in pixels
+#define HEADING_LINE_THICKNESS 1
 #define VEHICLE_POSE_HISTORY_SIZE 20
 
 using namespace std;
@@ -47,6 +47,8 @@ const int scale_factor = 8; // this needs to be the same as in the rgb node. cha
 const string windowName = "Visualizer";
 
 vector<Point> goal_points;
+Point target_wp;
+vector<Point> vector_wp;
 
 void onMouse( int evt, int x, int y, int flags, void *param) 
 {
@@ -60,6 +62,9 @@ void onMouse( int evt, int x, int y, int flags, void *param)
 	} else if (evt == CV_EVENT_RBUTTONDOWN)
 	{
 		goal_points.clear();
+    	vector_wp.clear();
+    	target_wp = Point(0,0);
+
 		ROS_INFO("right click registered");
 
 	}
@@ -91,14 +96,17 @@ public:
 	sub_target_angle1 = nh.subscribe("/target_angle1",5, &DataProcessor::targetAngle1Callback,this);
 	sub_conv_fac1 = nh.subscribe("/conv_fac1",5, &DataProcessor::convFac1Callback,this);
 	sub_vehicle1 = nh.subscribe("/vehicle_pose1",5, &DataProcessor::vehicle1Callback, this);
+	sub_vehicle2 = nh.subscribe("/vehicle_pose2",5, &DataProcessor::vehicle2Callback, this);
+	sub_target_angle2 = nh.subscribe("/target_angle2",5, &DataProcessor::targetAngle2Callback,this);
+
 /*
 	sub_rgb2 = it_nh.subscribe("/ground_station_rgb2",5, &DataProcessor::rgbFeed2Callback, this); 
 	sub_target_wp2 = nh.subscribe("/target_wp2",5, &DataProcessor::targetwp2Callback,this);
 	sub_vector_wp2 = nh.subscribe("/wp_pose2",5, &DataProcessor::vectorwp2Callback,this);
-	sub_target_angle2 = nh.subscribe("/target_angle2",5, &DataProcessor::targetAngle2Callback,this);
 	sub_conv_fac2 = nh.subscribe("/conv_fac2",5, &DataProcessor::convFac2Callback,this);
-	sub_vehicle2 = nh.subscribe("/vehicle_pose2",5, &DataProcessor::vehicle2Callback, this);*/
+*/
     //sub_goal = nh.subscribe("/goal_pose",20, &DataProcessor::goalCallback, this);
+
 
     undistorted_pts[0].x=0;
     undistorted_pts[1].x=board_w-1;
@@ -108,6 +116,15 @@ public:
     undistorted_pts[1].y=0;
     undistorted_pts[2].y=board_h-1;
     undistorted_pts[3].y=board_h-1;
+
+	corners1_vec.push_back(Point2f(undistorted_pts[0].x,undistorted_pts[0].y));
+	corners1_vec.push_back(Point2f(undistorted_pts[1].x,undistorted_pts[1].y));
+	corners1_vec.push_back(Point2f(undistorted_pts[2].x,undistorted_pts[2].y));
+	corners1_vec.push_back(Point2f(undistorted_pts[3].x,undistorted_pts[3].y));
+	corners2_vec.push_back(Point2f(undistorted_pts[0].x,undistorted_pts[0].y));
+	corners2_vec.push_back(Point2f(undistorted_pts[1].x,undistorted_pts[1].y));
+	corners2_vec.push_back(Point2f(undistorted_pts[2].x,undistorted_pts[2].y));
+	corners2_vec.push_back(Point2f(undistorted_pts[3].x,undistorted_pts[3].y));
 
     H_camcam = getPerspectiveTransform(undistorted_pts, undistorted_pts);
     H_cambird = getPerspectiveTransform(undistorted_pts, undistorted_pts);
@@ -230,7 +247,13 @@ public:
 	    vehicle_pose2.x  = (int)vehicle_pose_temp.x;
 	    vehicle_pose2.y = (int)vehicle_pose_temp.y;
 
-	    ROS_INFO("vehicleCallback: ( %i , %i )",vehicle_pose2.x,vehicle_pose2.y);
+	    ROS_INFO("vehicleCallback2: ( %i , %i )",vehicle_pose2.x,vehicle_pose2.y);
+	}
+
+	void targetAngle2Callback (const std_msgs::Float64::ConstPtr& target_angle_msg) 
+	{
+		target_angle2 = target_angle_msg -> data;
+	    ROS_INFO("targetAngle2Callback: ( %f )",target_angle2);
 	}
 
 	/*	void convFac2Callback (const std_msgs::Float64::ConstPtr& conv_fac_msg) 
@@ -240,11 +263,7 @@ public:
 	}
 
 
-	void targetAngle2Callback (const std_msgs::Float64::ConstPtr& target_angle_msg) 
-	{
-		target_angle = target_angle_msg -> data;
-	    ROS_INFO("targetAngleCallback: ( %f )",target_angle);
-	}
+
 
 	void targetwp2Callback (const geometry_msgs::Pose2D::ConstPtr& target_wp_msg) 
 	{
@@ -310,17 +329,17 @@ public:
 		Scalar wp_color = Scalar(50,255,0);
 		Scalar goal_color = Scalar(255,0,0);
 
-		circle(frame,vehicle_pose,LOS_RADIUS, Scalar(102, 178, 255));
+		circle(frame,vehicle_pose,LOS_RADIUS, Scalar(255,0,0));
 
 	    vehicle_heading.x = (int) round(vehicle_pose.x + LOS_RADIUS * cos(heading_angle));
 	    vehicle_heading.y = (int) round(vehicle_pose.y + LOS_RADIUS * sin(heading_angle));		    
-	    line(frame, vehicle_pose, vehicle_heading, Scalar(0, 128, 255), HEADING_LINE_THICKNESS, 8, 0);
+	    line(frame, vehicle_pose, vehicle_heading, Scalar(255, 50, 0), HEADING_LINE_THICKNESS, 8, 0);
 
-	    circle(frame,vehicle_pose2,LOS_RADIUS, Scalar(102, 178, 255));
+	    circle(frame,vehicle_pose2,LOS_RADIUS-1, Scalar(0, 0, 255));
 
 	    vehicle_heading2.x = (int) round(vehicle_pose2.x + LOS_RADIUS * cos(heading_angle));
 	    vehicle_heading2.y = (int) round(vehicle_pose2.y + LOS_RADIUS * sin(heading_angle));		    
-	    line(frame, vehicle_pose2, vehicle_heading2, Scalar(0, 128, 255), HEADING_LINE_THICKNESS, 8, 0);
+	    line(frame, vehicle_pose2, vehicle_heading2, Scalar(0, 50, 255), HEADING_LINE_THICKNESS, 8, 0);
 		
 		int size = vector_wp.size();
 		ROS_INFO("wp vector size = %i",size);
@@ -346,35 +365,29 @@ public:
 		Point target_angle_endpoint;
 	    target_angle_endpoint.x = (int) round(vehicle_pose.x + LOS_RADIUS * cos(target_angle));
 	    target_angle_endpoint.y = (int) round(vehicle_pose.y + LOS_RADIUS * sin(target_angle));		    
-	    line(frame, vehicle_pose, target_angle_endpoint, Scalar(255, 128, 0), HEADING_LINE_THICKNESS, 8, 0);
+	    line(frame, vehicle_pose, target_angle_endpoint, Scalar(200, 255, 0), HEADING_LINE_THICKNESS, 8, 0);
 
    		Point target_angle_endpoint2;
 	    target_angle_endpoint2.x = (int) round(vehicle_pose2.x + LOS_RADIUS * cos(target_angle2));
 	    target_angle_endpoint2.y = (int) round(vehicle_pose2.y + LOS_RADIUS * sin(target_angle2));		    
-	    line(frame, vehicle_pose2, target_angle_endpoint2, Scalar(255, 128, 0), HEADING_LINE_THICKNESS, 8, 0);
+	    line(frame, vehicle_pose2, target_angle_endpoint2, Scalar(0, 255, 200), HEADING_LINE_THICKNESS, 8, 0);
 
-	   	circle(frame, Point(160+corners1_pts[0].x/scale_factor,120+corners1_pts[0].y/scale_factor), 2, Scalar(255,0,0),1);
-	   	circle(frame, Point(160+corners1_pts[1].x/scale_factor,120+corners1_pts[1].y/scale_factor), 2, Scalar(0,255,0),1);
-	   	circle(frame, Point(160+corners1_pts[2].x/scale_factor,120+corners1_pts[2].y/scale_factor), 2, Scalar(0,0,255),1);
-	   	circle(frame, Point(160+corners1_pts[3].x/scale_factor,120+corners1_pts[3].y/scale_factor), 2, Scalar(0,255,255),1);
-
-	   	circle(frame, Point(160+corners2_pts[0].x/scale_factor,120+corners2_pts[0].y/scale_factor), 2, Scalar(100,0,0),1);
-	   	circle(frame, Point(160+corners2_pts[1].x/scale_factor,120+corners2_pts[1].y/scale_factor), 2, Scalar(0,100,0),1);
-	   	circle(frame, Point(160+corners2_pts[2].x/scale_factor,120+corners2_pts[2].y/scale_factor), 2, Scalar(0,0,100),1);
-	   	circle(frame, Point(160+corners2_pts[3].x/scale_factor,120+corners2_pts[3].y/scale_factor), 2, Scalar(0,100,100),1);
-
-	   	circle(frame, Point(160+corners2_pts_camcam[0].x/scale_factor,120+corners2_pts_camcam[0].y/scale_factor), 4, Scalar(200,0,0),1);
-	   	circle(frame, Point(160+corners2_pts_camcam[1].x/scale_factor,120+corners2_pts_camcam[1].y/scale_factor), 4, Scalar(0,200,0),1);
-	   	circle(frame, Point(160+corners2_pts_camcam[2].x/scale_factor,120+corners2_pts_camcam[2].y/scale_factor), 4, Scalar(0,0,200),1);
-	   	circle(frame, Point(160+corners2_pts_camcam[3].x/scale_factor,120+corners2_pts_camcam[3].y/scale_factor), 4, Scalar(0,200,200),1);
-/*
+	   	circle(frame, Point(corners1_pts[0].x,corners1_pts[0].y), 1, Scalar(255,200,0),1);
+	   	circle(frame, Point(corners1_pts[1].x,corners1_pts[1].y), 1, Scalar(255,0,0),1);
+	   	circle(frame, Point(corners1_pts[2].x,corners1_pts[2].y), 1, Scalar(255,0,0),1);
+	  	circle(frame, Point(corners1_pts[3].x,corners1_pts[3].y), 1, Scalar(255,0,0),1);
+	  	circle(frame, Point(corners2_pts_camcam[0].x,corners2_pts_camcam[0].y), 4, Scalar(0,200,255),1);
+	 	circle(frame, Point(corners2_pts_camcam[1].x,corners2_pts_camcam[1].y), 4, Scalar(0,0,255),1);
+	   	circle(frame, Point(corners2_pts_camcam[2].x,corners2_pts_camcam[2].y), 4, Scalar(0,0,255),1);
+	 	
 /*
 	   	circle(frame, Point(160+corners1_pts[0].x/scale_factor-corners2_pts[0].x/scale_factor,120+corners1_pts[0].y/scale_factor - corners2_pts[0].y/scale_factor), 4, Scalar(255,0,0),1);
 	   	circle(frame, Point(160+corners1_pts[1].x/scale_factor-corners2_pts[1].x/scale_factor,120+corners1_pts[1].y/scale_factor - corners2_pts[1].y/scale_factor), 4, Scalar(255,0,0),1);
 	   	circle(frame, Point(160+corners1_pts[2].x/scale_factor-corners2_pts[2].x/scale_factor,120+corners1_pts[2].y/scale_factor - corners2_pts[2].y/scale_factor), 4, Scalar(255,0,0),1);
 	   	circle(frame, Point(160+corners1_pts[3].x/scale_factor-corners2_pts[3].x/scale_factor,120+corners1_pts[3].y/scale_factor - corners2_pts[3].y/scale_factor), 4, Scalar(255,0,0),1);
 */
-		circle(frame,vehicle_pose,2, Scalar(102, 178, 255),2);
+		circle(frame,vehicle_pose,2, Scalar(255, 0, 0),1);
+		circle(frame,vehicle_pose2,2, Scalar(0, 0, 255),1);
 
 	}
 
@@ -401,8 +414,7 @@ public:
 	    undistorted_pts[1].y=corners1_pts[0].y;
 	    undistorted_pts[2].y=corners1_pts[0].y+board_h-1;
 	    undistorted_pts[3].y=corners1_pts[0].y+board_h-1;
-
-
+				
 
   //   	undistorted_pts[0].x=0;
 		// undistorted_pts[1].x=board_w-1;
@@ -506,6 +518,114 @@ public:
 
 	// }
 
+	double distCalc(Point2f p1, Point2f p2)
+	{
+		double x = p1.x - p2.x;
+		double y = p1.y - p2.y;
+
+		double dist;
+		dist = pow(x, 2) + pow(y, 2);       //calculate Euclidean distance
+		dist = sqrt(dist);                  
+
+		return dist;
+	}
+
+	double getAffineScale(vector<Point2f> c1, vector<Point2f> c2) 
+	{
+	
+		double h1L = distCalc(c1[0],c1[2]);
+		double h1R = distCalc(c1[1],c1[3]);
+		double h2L = distCalc(c2[0],c2[2]);
+		double h2R = distCalc(c2[1],c2[3]);
+		double w1T = distCalc(c1[0],c1[1]);
+		double w1B = distCalc(c1[2],c1[3]);
+		double w2T = distCalc(c2[0],c2[1]);
+		double w2B = distCalc(c2[2],c2[3]);
+		
+		double h1 = (h1L + h1R)/2;
+		double h2 = (h2L + h2R)/2;
+		
+		double w1 = (w1T + w1B)/2;
+		double w2 = (w2T+ w2B)/2;
+		
+		double scale = ((h1/h2) + (w1/w2))/2;
+	}
+
+
+/*	double getAffineAngle( Point2f c1, Point2f c2) 
+	{
+	//	quat RotationBetweenVectors(vec3 start, vec3 dest){
+
+		start = normalize(start);
+		dest = normalize(dest);
+
+		float cosTheta = dot(start, dest);
+		vec3 rotationAxis;
+
+		if (cosTheta < -1 + 0.001f){
+			// special case when vectors in opposite directions:
+			// there is no "ideal" rotation axis
+			// So guess one; any will do as long as it's perpendicular to start
+			rotationAxis = cross(vec3(0.0f, 0.0f, 1.0f), start);
+			if (gtx::norm::length2(rotationAxis) < 0.01 ) // bad luck, they were parallel, try again!
+				rotationAxis = cross(vec3(1.0f, 0.0f, 0.0f), start);
+
+			rotationAxis = normalize(rotationAxis);
+			return gtx::quaternion::angleAxis(glm::radians(180.0f), rotationAxis);
+		}
+
+		rotationAxis = cross(start, dest);
+
+		float s = sqrt( (1+cosTheta)*2 );
+		float invs = 1 / s;
+
+		return quat(
+			s * 0.5f, 
+			rotationAxis.x * invs,
+			rotationAxis.y * invs,
+			rotationAxis.z * invs
+		);
+
+	}*/
+
+
+	void affineImg(vector<Point2f> c1, vector<Point2f> c2, double scale, Mat &temp)
+	{
+
+	   
+	   Point2f srcTri[3];
+	   Point2f dstTri[3];
+
+	   Mat rot_mat( 2, 3, CV_32FC1 );
+	   Mat warp_mat( 2, 3, CV_32FC1 );
+	   Mat src, warp_dst, warp_rotate_dst;
+
+	   /// Load the image
+	   temp.copyTo(src);
+
+	   /// Set the dst image the same type and size as src
+	   warp_dst = Mat::zeros( src.rows, src.cols, src.type() );
+
+	   /// Set your 3 points to calculate the  Affine Transform
+	   srcTri[0] = c2[0];
+	   srcTri[1] = c2[1];
+	   srcTri[2] = c2[2];
+
+	   dstTri[0] = c1[0];
+	   dstTri[1] = c1[1];
+	   dstTri[2] = c1[2];
+
+	   /// Get the Affine Transform
+	   warp_mat = getAffineTransform( srcTri, dstTri );
+
+	   /// Apply the Affine Transform just found to the src image
+	   warpAffine( src, warp_dst, warp_mat, warp_dst.size() );
+	   warp_dst.copyTo(temp);
+
+	}
+
+
+
 	void updateMap(Mat &temp, int ID) {
     	Mat worldMaptemp(temp.rows*3,temp.cols*3,temp.type(),Scalar(0));
     	if (counter < 1) { //zero out
@@ -516,11 +636,18 @@ public:
 	   	worldMap_tic++;;
     	//else, for 2 count, add images from ID 1 and 2
 	    if (ID > 1) { // ID = 2, HbirdHcamcamOG
-    	    cout << "tranform performed" << endl; 
+
 	   		worldMap1.setTo(Scalar(0));
-	   		worldMaptemp.setTo(Scalar(0));
-	   		//temp.copyTo(worldMaptemp(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
-	        for (int xt = 1; xt <= 160; xt++)
+	   		//worldMaptemp.setTo(Scalar(0));
+	   		temp.copyTo(worldMap1(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
+	   		cout << "c1: " << corners1_vec << endl;
+	   		cout << "c2: "<< corners2_vec << endl;
+	   		double scale = getAffineScale(corners1_vec, corners2_vec);
+	   		cout << "scale: "<< scale << endl;
+	   		affineImg(corners1_vec, corners2_vec,scale, worldMap1);
+			cout << "affine done" << endl;
+/*	        
+for (int xt = 1; xt <= 160; xt++)
        		{
             	for (int yt = 1; yt<=120; yt++)
             	{   
@@ -548,7 +675,7 @@ public:
 		            }
 	           	}
         	}
-
+*/
 
 			//warpPerspective(worldMaptemp , worldMaptemp, H_camcam_inv, worldMaptemp.size(), INTER_LINEAR, BORDER_CONSTANT, Scalar::all(0)); 	    
 	   		
@@ -563,7 +690,7 @@ public:
     	// publish and reset
     	//if (worldMap_tic >= 2) {
     		worldMap_tic = 0;
-    		addWeighted(worldMap1,0.5,worldMap2,0.5,0.0,worldMap);
+    		addWeighted(worldMap1,0.6,worldMap2,0.6,0.0,worldMap);
 		    drawData(worldMap);
 		    upsampleFrame(worldMap);
 	    	imshow(windowName,worldMap);
@@ -590,7 +717,7 @@ public:
 	    	header.stamp = ros::Time::now();
 	    	cv_bridge::CvImage worldMap_bridge;
 	    	sensor_msgs::Image worldMap_msg;
-	    	worldMap_bridge = cv_bridge::CvImage(header,sensor_msgs::image_encodings::BGR8, worldMap1);
+	    	worldMap_bridge = cv_bridge::CvImage(header,sensor_msgs::image_encodings::BGR8, worldMap);
 	    	worldMap_bridge.toImageMsg(worldMap_msg);
 	    	pub_worldMap.publish(worldMap_msg);
 
@@ -606,7 +733,7 @@ public:
 	    int size = corners1_msg->poses.size();
 	    for (int i=0;i<size;i++)
 	    {
-	        corners1_vec.push_back(Point2f(corners1_msg->poses[i].position.x,corners1_msg->poses[i].position.y));
+	        corners1_vec.push_back(Point2f(160+corners1_msg->poses[i].position.x/scale_factor,120+corners1_msg->poses[i].position.y/scale_factor));
 	        corners1_pts[i] = corners1_vec[i];    
 	    }
 	    ROS_INFO("corners1");
@@ -623,7 +750,7 @@ public:
 	    int size = corners2_msg->poses.size();
 	    for (int i=0;i<size;i++)
 	    {
-	        corners2_vec.push_back(Point((int)corners2_msg->poses[i].position.x,(int)corners2_msg->poses[i].position.y));
+	        corners2_vec.push_back(Point2f(160+(int)corners2_msg->poses[i].position.x/scale_factor,120+(int)corners2_msg->poses[i].position.y/scale_factor));
 	        corners2_pts[i] = corners2_vec[i];    
 	    }
 
@@ -634,9 +761,9 @@ public:
 
 		for (int n=0;n<=3; n++) {
 
-	        float x = H_camcam_inv.at<double>(0,0) * corners2_vec[n].x + H_camcam_inv.at<double>(0,1) * corners2_vec[n].y + H_camcam_inv.at<double>(0,2);
-	        float y = H_camcam_inv.at<double>(1,0) * corners2_vec[n].x + H_camcam_inv.at<double>(1,1) * corners2_vec[n].y + H_camcam_inv.at<double>(1,2);
-	        float w = H_camcam_inv.at<double>(2,0) * corners2_vec[n].x + H_camcam_inv.at<double>(2,1) * corners2_vec[n].y + H_camcam_inv.at<double>(2,2);
+	        float x = H_camcam_inv.at<double>(0,0) * corners2_msg->poses[n].position.x + H_camcam_inv.at<double>(0,1) * corners2_msg->poses[n].position.y + H_camcam_inv.at<double>(0,2);
+	        float y = H_camcam_inv.at<double>(1,0) * corners2_msg->poses[n].position.x + H_camcam_inv.at<double>(1,1) * corners2_msg->poses[n].position.y + H_camcam_inv.at<double>(1,2);
+	        float w = H_camcam_inv.at<double>(2,0) * corners2_msg->poses[n].position.x + H_camcam_inv.at<double>(2,1) * corners2_msg->poses[n].position.y + H_camcam_inv.at<double>(2,2);
 
 	        corners2_pts_camcam[n]=Point(x/w,y/w);
 		
@@ -759,8 +886,6 @@ private:
 	ros::Subscriber sub_corners2;
 	ros::Subscriber sub_corners1;
 
-	Point target_wp;
-	vector<Point> vector_wp;
 
 	double target_angle = 0;
 	double target_angle2=0;

@@ -269,22 +269,22 @@ int main(int argc, char **argv)
   string s;
   s = ss.str();
 
-  string conv_fac = "/conv_fac" + s ;
-  string vehicle_odom = "/vehicle_odom" + s ;
-  string wp_pose = "/wp_pose" + s ;
-  string arm_bool = "/arm_bool" + s ;
-  string target_angle = "/target_angle" + s ;
-  string target_speed = "/target_speed" + s ;
-  string target_wp = "/target_wp" + s ;
+  string conv_fac_ss = "/conv_fac" + s ;
+  string vehicle_odom_ss = "/vehicle_odom" + s ;
+  string wp_pose_ss = "/wp_pose" + s ;
+  string arm_bool_ss = "/arm_bool" + s ;
+  string target_angle_ss = "/target_angle" + s ;
+  string target_speed_ss = "/target_speed" + s ;
+  string target_wp_ss = "/target_wp" + s ;
 
-  sub_vehicle = n.subscribe(vehicle_odom,20, &vehicleCallback);
-  sub_wp = n.subscribe(wp_pose,20, &waypointCallback);
-  sub_conv_fac = n.subscribe(conv_fac,20, &convFacCallback);
-  sub_arm_bool = n.subscribe(arm_bool,20, &armCallback);
+  sub_vehicle = n.subscribe(vehicle_odom_ss,20, &vehicleCallback);
+  sub_wp = n.subscribe(wp_pose_ss,20, &waypointCallback);
+  sub_conv_fac = n.subscribe(conv_fac_ss,20, &convFacCallback);
+  sub_arm_bool = n.subscribe(arm_bool_ss,20, &armCallback);
 
-  target_angle_pub = n.advertise<std_msgs::Float64>(target_angle,2);
-  target_speed_pub = n.advertise<std_msgs::Float64>(target_speed,2);
-  target_wp_pub = n.advertise<geometry_msgs::Pose2D>(target_wp,2);
+  target_angle_pub = n.advertise<std_msgs::Float64>(target_angle_ss,2);
+  target_speed_pub = n.advertise<std_msgs::Float64>(target_speed_ss,2);
+  target_wp_pub = n.advertise<geometry_msgs::Pose2D>(target_wp_ss,2);
 
   
   ros::spin();

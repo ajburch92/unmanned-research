@@ -541,7 +541,7 @@ public:
 		float c = 0.33;
 
 		confidence = consecutive_tracks * a + detection_area * b + detection_area * c; 
-		
+		confidence = 1;
 		std_msgs::Float64 confidence_msg;
 		confidence_msg.data = confidence;
 		rgb_confidence_pub.publish(confidence_msg);
