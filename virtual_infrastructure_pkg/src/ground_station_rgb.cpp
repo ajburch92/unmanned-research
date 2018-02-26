@@ -539,9 +539,12 @@ public:
 		float a = 0.33;
 		float b = 0.33;
 		float c = 0.33;
+	
+		if (local_bool > 0) {
+//			confidence = consecutive_tracks * a + detection_area * b + detection_area * c; 
+			confidence = 1;
+		} else {confidence = 0;}
 
-		confidence = consecutive_tracks * a + detection_area * b + detection_area * c; 
-		confidence = 1;
 		std_msgs::Float64 confidence_msg;
 		confidence_msg.data = confidence;
 		rgb_confidence_pub.publish(confidence_msg);
@@ -561,7 +564,6 @@ public:
 	  	vector<float> dist;
 	  	double x,y,th;
 	  	double max_contour_index;
-	  	double confidence_temp = 0; 
 
 	  	if (hierarchy.size() > 0) { // if contours are found
 	  		
@@ -637,7 +639,7 @@ public:
 
 		  			local_bool = 1;
           			// calc confidence
-		  			confidence = 1;
+		  			//confidence = 1;
                                
           		//}
 
@@ -653,13 +655,13 @@ public:
 
 		  			local_bool = 1;
 			  		// calc confidence
-		  			confidence = 0.1;
+		  			//confidence = 0.1;
 
 		  		} else {
 
 		  			local_bool = 0;
           			// calc confidence
-		  			confidence = 0;
+		  			//confidence = 0;
 				}
           	}
 
@@ -687,7 +689,7 @@ public:
 
 					local_bool = 0;
 					// calc confidence
-		  			confidence = 0;
+		  			//confidence = 0;
 
 				}
 			}		  	  
@@ -696,12 +698,14 @@ public:
 		x = double(x_obj);
 		y = double(y_obj);
 
+		// calc and send confidence
+		confidence_calc();
+
 		if (local_bool > 0) { // vehicle_detected or projected, send pose.
 
 			if (name=="vehicle") { // yellow vehicle state
 				
-				// calc and send confidence
-				confidence_calc();
+
 
 				vehicle_pose = Point((int)x, (int)y);
 		
@@ -730,7 +734,7 @@ public:
 			else if (name=="goal") { // blue goal state
 				ROS_INFO("goal pose: ( %i , %i ) ",x_obj,y_obj);
 			} else {};
-		}
+		} else {};
 
 	}
 
