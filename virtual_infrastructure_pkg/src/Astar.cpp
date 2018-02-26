@@ -32,8 +32,8 @@ using namespace cv;
 //m and n should start as camera resolution size
 int scale_factor = 8; // change this to a launch file paramerter. this is the downsampling applied to the occupancy grid.
 //res initially 1288x964 then resize to 1280x960, reduced to 160x120 (8x)
-const int n=120*3;//160; // horizontal size of the grid  CAN I CHECK CONFIG FILE FOR THIS VALUE
-const int m=160*3;//120; // vertical size size of the grid
+const int n=160*3;//160; // horizontal size of the grid  CAN I CHECK CONFIG FILE FOR THIS VALUE
+const int m=120*3;//120; // vertical size size of the grid
 static int grid[n][m];
 static int closed_nodes_grid[n][m]; // grid of closed (tried-out) nodes
 static int open_nodes_grid[n][m]; // grid of open (not-yet-tried) nodes
@@ -60,11 +60,11 @@ int yB = 240;
 
 int subgoal = 0;
 
-Mat gridDownLocal(n/3,m/3,CV_8UC1,Scalar(0));
-Mat occupancyGridLocal(n/3,m/3,CV_8UC1,Scalar(0));
-Mat gridDownRemote(n/3,m/3,CV_8UC1,Scalar(0));
-Mat occupancyGridRemote(n/3,m/3,CV_8UC1,Scalar(0));
-Mat occupancyGridworld(n,m,CV_8UC1,Scalar(0));
+Mat gridDownLocal(m/3,n/3,CV_8UC1,Scalar(0));
+Mat occupancyGridLocal(m/3,n/3,CV_8UC1,Scalar(0));
+Mat gridDownRemote(m/3,n/3,CV_8UC1,Scalar(0));
+Mat occupancyGridRemote(m/3,n/3,CV_8UC1,Scalar(0));
+Mat occupancyGridworld(m,n,CV_8UC1,Scalar(0));
 
 double conv_facLocal;
 double conv_facRemote;
@@ -455,23 +455,30 @@ void updateMap(Mat &temp, bool local) {
         worldMap.copyTo(MapRemote);
     }
     worldMap_tic++;;
+    cout<<ID_num<<endl;
     //else, for 2 count, add images from ID 1 and 2
     if (local > 0) { //local
 
         MapLocal.setTo(Scalar(0));
         temp.copyTo(MapLocal(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
 
+        if (ID_num != 1) { // transform
+            cout<< "check1" << endl;
+            double scale = getAffineScale(corners1_vec, corners2_vec);
+            affineImg(corners1_vec, corners2_vec,scale, MapLocal);
+        }
+    cout<< "check2" << endl;
+        
     } else { //remote
 
         MapRemote.setTo(Scalar(0));
         temp.copyTo(MapRemote(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
-        cout << "c1: " << corners1_vec << endl;
-        cout << "c2: "<< corners2_vec << endl;
-        double scale = getAffineScale(corners1_vec, corners2_vec);
-        cout << "scale: "<< scale << endl;
-        affineImg(corners1_vec, corners2_vec,scale, MapRemote);
-        cout << "affine done" << endl;
-
+        if (ID_num != 1) { // transform
+            cout<< "check3" << endl;
+            double scale = getAffineScale(corners1_vec, corners2_vec);
+            affineImg(corners1_vec, corners2_vec,scale, MapRemote);
+        }
+        cout<< "check4" << endl;
     }
 
     if (worldMap_tic >= 2) {
@@ -490,12 +497,12 @@ void updateMap(Mat &temp, bool local) {
         {
             for (int y = 1; y<=m; y++)
             {   
-                int pix = (int)worldMap.at<uchar>(x,y);
+                int pix = (int)worldMap.at<uchar>(y,x);
                 if (pix> 0) // obstacle
                 {    
-                    grid[y][x] = 1;
+                    grid[x][y] = 1;
                 } else {
-                    grid[y][x] = 0;
+                    grid[x][y] = 0;
                 }
             }
         }
@@ -549,6 +556,7 @@ void updateMap(Mat &temp, bool local) {
                 y_prev = y;
             }
             grid[x][y]=4;
+        cout<< "check8" << endl;
 
             // display the grid with the route
             //write to output image topic
@@ -597,6 +605,7 @@ void updateMap(Mat &temp, bool local) {
                 }
             }
         }
+        cout<< "check5" << endl;
 
         ROS_INFO("poseArray published");
         wp_pub.publish(poseArray); 
@@ -604,12 +613,14 @@ void updateMap(Mat &temp, bool local) {
         occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, occupancyGridworld);
         occupancy_bridge.toImageMsg(occupancyGrid_msg);
         path_pub.publish(occupancyGrid_msg);
+        cout<< "check6" << endl;
 
         //empty map
         for(int y=0;y<m;y++)
         {
             for(int x=0;x<n;x++) grid[x][y]=0;
         }
+        cout<< "check7" << endl;
 
     }
 }
@@ -683,8 +694,8 @@ void corners1Callback (const geometry_msgs::PoseArray::ConstPtr& corners1_msg)
     int size = corners1_msg->poses.size();
     for (int i=0;i<size;i++)
     {
-//        corners1_vec.push_back(Point2f(160+corners1_msg->poses[i].position.x/scale_factor,120+corners1_msg->poses[i].position.y/scale_factor));
-        corners1_vec.push_back(Point2f(corners1_msg->poses[i].position.x,corners1_msg->poses[i].position.y));
+        corners1_vec.push_back(Point2f(160+corners1_msg->poses[i].position.x/scale_factor,120+corners1_msg->poses[i].position.y/scale_factor));
+//        corners1_vec.push_back(Point2f(corners1_msg->poses[i].position.x,corners1_msg->poses[i].position.y));
         corners1_pts[i] = corners1_vec[i];    
     }
     
@@ -700,8 +711,8 @@ void corners2Callback (const geometry_msgs::PoseArray::ConstPtr& corners2_msg)
     int size = corners2_msg->poses.size();
     for (int i=0;i<size;i++)
     {
-//        corners2_vec.push_back(Point2f(160+(int)corners2_msg->poses[i].position.x/scale_factor,120+(int)corners2_msg->poses[i].position.y/scale_factor));        
-        corners2_vec.push_back(Point((int)corners2_msg->poses[i].position.x,(int)corners2_msg->poses[i].position.y));
+        corners2_vec.push_back(Point2f(160+(int)corners2_msg->poses[i].position.x/scale_factor,120+(int)corners2_msg->poses[i].position.y/scale_factor));        
+//        corners2_vec.push_back(Point((int)corners2_msg->poses[i].position.x,(int)corners2_msg->poses[i].position.y));
         corners2_pts[i] = corners2_vec[i];    
     }
 
@@ -712,14 +723,14 @@ void corners2Callback (const geometry_msgs::PoseArray::ConstPtr& corners2_msg)
 
     for (int n=0;n<=3; n++) {
 
-     // float x = H_camcam_inv.at<double>(0,0) * corners2_msg->poses[n].position.x + H_camcam_inv.at<double>(0,1) * corners2_msg->poses[n].position.y + H_camcam_inv.at<double>(0,2);
-     // float y = H_camcam_inv.at<double>(1,0) * corners2_msg->poses[n].position.x + H_camcam_inv.at<double>(1,1) * corners2_msg->poses[n].position.y + H_camcam_inv.at<double>(1,2);
-     // float w = H_camcam_inv.at<double>(2,0) * corners2_msg->poses[n].position.x + H_camcam_inv.at<double>(2,1) * corners2_msg->poses[n].position.y + H_camcam_inv.at<double>(2,2);
+          float x = H_camcam_inv.at<double>(0,0) * corners2_msg->poses[n].position.x + H_camcam_inv.at<double>(0,1) * corners2_msg->poses[n].position.y + H_camcam_inv.at<double>(0,2);
+          float y = H_camcam_inv.at<double>(1,0) * corners2_msg->poses[n].position.x + H_camcam_inv.at<double>(1,1) * corners2_msg->poses[n].position.y + H_camcam_inv.at<double>(1,2);
+          float w = H_camcam_inv.at<double>(2,0) * corners2_msg->poses[n].position.x + H_camcam_inv.at<double>(2,1) * corners2_msg->poses[n].position.y + H_camcam_inv.at<double>(2,2);
 
 
-        float x = H_camcam_inv.at<double>(0,0) * corners2_vec[n].x + H_camcam_inv.at<double>(0,1) * corners2_vec[n].y + H_camcam_inv.at<double>(0,2);
-        float y = H_camcam_inv.at<double>(1,0) * corners2_vec[n].x + H_camcam_inv.at<double>(1,1) * corners2_vec[n].y + H_camcam_inv.at<double>(1,2);
-        float w = H_camcam_inv.at<double>(2,0) * corners2_vec[n].x + H_camcam_inv.at<double>(2,1) * corners2_vec[n].y + H_camcam_inv.at<double>(2,2);
+//        float x = H_camcam_inv.at<double>(0,0) * corners2_vec[n].x + H_camcam_inv.at<double>(0,1) * corners2_vec[n].y + H_camcam_inv.at<double>(0,2);
+//        float y = H_camcam_inv.at<double>(1,0) * corners2_vec[n].x + H_camcam_inv.at<double>(1,1) * corners2_vec[n].y + H_camcam_inv.at<double>(1,2);
+//        float w = H_camcam_inv.at<double>(2,0) * corners2_vec[n].x + H_camcam_inv.at<double>(2,1) * corners2_vec[n].y + H_camcam_inv.at<double>(2,2);
 
         corners2_pts_camcam[n]=Point(x/w,y/w);
     }
@@ -803,12 +814,12 @@ int main(int argc, char **argv)
 	image_transport::Subscriber sub_occupancyGridRemote = it_astar.subscribe(occupancyGridRemote,1, &occupancyGridRemoteCallback); 
     ros::Subscriber sub_corners1 = node.subscribe("corners1",1,&corners1Callback);
     ros::Subscriber sub_corners2 = node.subscribe("corners2",1,&corners2Callback);
-    ros::Subscriber sub_vehicle = node.subscribe(vehicle_pose_s,2, &vehicleCallback);
-    ros::Subscriber sub_goal_out = node.subscribe("goal_pose_out",2, &goal_outCallback);
-    ros::Subscriber sub_conv_facLocal = node.subscribe(conv_facLocal,2, &conv_facLocalCallback);
-    ros::Subscriber sub_conv_facRemote = node.subscribe(conv_facRemote,2, &conv_facRemoteCallback);
-    ros::Subscriber sub_confidenceLocal = node.subscribe(confidenceLocal,2, &confidenceLocalCallback);
-    ros::Subscriber sub_confidenceRemote = node.subscribe(confidenceLocal,2, &confidenceRemoteCallback);
+    ros::Subscriber sub_vehicle = node.subscribe(vehicle_pose_s,1, &vehicleCallback);
+    ros::Subscriber sub_goal_out = node.subscribe("goal_pose_out",1, &goal_outCallback);
+    ros::Subscriber sub_conv_facLocal = node.subscribe(conv_facLocal,1, &conv_facLocalCallback);
+    ros::Subscriber sub_conv_facRemote = node.subscribe(conv_facRemote,1, &conv_facRemoteCallback);
+    ros::Subscriber sub_confidenceLocal = node.subscribe(confidenceLocal,1, &confidenceLocalCallback);
+    ros::Subscriber sub_confidenceRemote = node.subscribe(confidenceLocal,1, &confidenceRemoteCallback);
 
     // publish topics for the output visualization and for the next waypoint for the low level controller.
     path_pub = it_astar.advertise(pathGrid,1);
@@ -818,14 +829,14 @@ int main(int argc, char **argv)
     
     ROS_INFO("Start path planning operations");
 
-//    ros::spin();
-    ros::Rate r(4);
+    ros::spin();
+/*    ros::Rate r(4);
     while(ros::ok()) {
         ros::spinOnce();
         updateMap(gridDownLocal,1);
         updateMap(gridDownRemote,0);
         r.sleep();
-    }
+    }*/
     
     return(0);
 

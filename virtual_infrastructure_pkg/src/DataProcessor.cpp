@@ -48,7 +48,9 @@ const string windowName = "Visualizer";
 
 vector<Point> goal_points;
 Point target_wp;
+Point target_wp2;
 vector<Point> vector_wp;
+vector<Point> vector_wp2;
 
 void onMouse( int evt, int x, int y, int flags, void *param) 
 {
@@ -91,13 +93,15 @@ public:
     sub_corners2 = nh.subscribe("corners2",1,&DataProcessor::corners2Callback,this);
 	sub_rgb2 = it_nh.subscribe("/ground_station_rgb2",1, &DataProcessor::rgbFeed2Callback, this); 
 	sub_rgb1 = it_nh.subscribe("/ground_station_rgb1",1, &DataProcessor::rgbFeed1Callback, this); 
-	sub_target_wp1 = nh.subscribe("/target_wp1",5, &DataProcessor::targetwp1Callback,this);
-	sub_vector_wp1 = nh.subscribe("/wp_pose1",5, &DataProcessor::vectorwp1Callback,this);
-	sub_target_angle1 = nh.subscribe("/target_angle1",5, &DataProcessor::targetAngle1Callback,this);
-	sub_conv_fac1 = nh.subscribe("/conv_fac1",5, &DataProcessor::convFac1Callback,this);
-	sub_vehicle1 = nh.subscribe("/vehicle_pose1",5, &DataProcessor::vehicle1Callback, this);
-	sub_vehicle2 = nh.subscribe("/vehicle_pose2",5, &DataProcessor::vehicle2Callback, this);
-	sub_target_angle2 = nh.subscribe("/target_angle2",5, &DataProcessor::targetAngle2Callback,this);
+	sub_target_wp1 = nh.subscribe("/target_wp1",1, &DataProcessor::targetwp1Callback,this);
+	sub_vector_wp1 = nh.subscribe("/wp_pose1",1, &DataProcessor::vectorwp1Callback,this);
+	sub_target_angle1 = nh.subscribe("/target_angle1",1, &DataProcessor::targetAngle1Callback,this);
+	sub_conv_fac1 = nh.subscribe("/conv_fac1",1, &DataProcessor::convFac1Callback,this);
+	sub_vehicle1 = nh.subscribe("/vehicle_pose1",1, &DataProcessor::vehicle1Callback, this);
+	sub_vehicle2 = nh.subscribe("/vehicle_pose2",1, &DataProcessor::vehicle2Callback, this);
+	sub_target_angle2 = nh.subscribe("/target_angle2",1, &DataProcessor::targetAngle2Callback,this);
+	sub_vector_wp2 = nh.subscribe("/wp_pose2",1, &DataProcessor::vectorwp2Callback,this);
+	sub_target_wp2 = nh.subscribe("/target_wp2",5, &DataProcessor::targetwp2Callback,this);
 
 /*
 	sub_rgb2 = it_nh.subscribe("/ground_station_rgb2",5, &DataProcessor::rgbFeed2Callback, this); 
@@ -194,6 +198,24 @@ public:
 		}
 	}
 
+	void targetwp2Callback (const geometry_msgs::Pose2D::ConstPtr& target_wp_msg) 
+	{
+	    target_wp2.x  = target_wp_msg->x / scale_factor;
+	    target_wp2.y = target_wp_msg->y / scale_factor;
+	    ROS_INFO("targetwp2Callback: ( %i , %i )",target_wp2.x,target_wp2.y);
+	}
+
+	void vectorwp2Callback (const geometry_msgs::PoseArray::ConstPtr& vector_wp_msg) 
+	{
+    	ROS_INFO("vectorwpDownCallback");
+    	vector_wp2.clear();
+    	int size = vector_wp_msg->poses.size();
+    	for (int i=0;i<size;i++)
+    	{
+    		vector_wp2.push_back(Point((int)vector_wp_msg->poses[i].position.x,(int)vector_wp_msg->poses[i].position.y));
+		}
+	}
+
 	void vehicle1Callback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
 	{
 		double xtemp, ytemp;
@@ -262,40 +284,7 @@ public:
 	    ROS_INFO("convFacCallback: ( %f )",conv_fac);
 	}
 
-
-
-
-	void targetwp2Callback (const geometry_msgs::Pose2D::ConstPtr& target_wp_msg) 
-	{
-	    target_wp.x  = target_wp_msg->x;
-	    target_wp.y = target_wp_msg->y;
-	    ROS_INFO("targetwpCallback: ( %i , %i )",target_wp.x,target_wp.y);
-	}
-
-	void vectorwp2Callback (const geometry_msgs::PoseArray::ConstPtr& vector_wp_msg) 
-	{
-    	ROS_INFO("vectorwpDownCallback");
-    	vector_wp.clear();
-    	int size = vector_wp_msg->poses.size();
-    	for (int i=0;i<size;i++)
-    	{
-    		vector_wp.push_back(Point((int)vector_wp_msg->poses[i].position.x,(int)vector_wp_msg->poses[i].position.y));
-		}
-	}
-
-	void vehicle2Callback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
-	{
-		double xtemp, ytemp;
-	    xtemp = vehicle_pose_msg->x;
-	    ytemp = vehicle_pose_msg->y;
-	    heading_angle  = vehicle_pose_msg->theta;
-	    //translate to downsampled coordinates
-	    vehicle_pose.x = (int)xtemp;
-	    vehicle_pose.y = (int)ytemp;
-
-	    ROS_INFO("vehicleCallback: ( %i , %i )",vehicle_pose.x,vehicle_pose.y);
-	}*/
-
+*/
 
 	void updateGoal() 
 	{
@@ -325,8 +314,11 @@ public:
 	void drawData(Mat &frame)
 	{
 
-		Scalar path_color = Scalar(0,255,0);
-		Scalar wp_color = Scalar(50,255,0);
+		Scalar path_color = Scalar(150,150,0);
+		Scalar wp_color = Scalar(150,150,0);
+		Scalar wp_color2 = Scalar(0,150,150);
+		Scalar path_color2 = Scalar(0,150,150);
+
 		Scalar goal_color = Scalar(255,0,0);
 
 		circle(frame,vehicle_pose,LOS_RADIUS, Scalar(255,0,0));
@@ -345,10 +337,20 @@ public:
 		ROS_INFO("wp vector size = %i",size);
     	for (int i=0;i<size;i++)
     	{
-    		circle(frame,vector_wp[i], 1, path_color,1);
+    		circle(frame,vector_wp[i], 2, path_color,1);
     		//ROS_INFO("wp:%i,%i",vector_wp[i].x,vector_wp[i].y);
 
 		}
+
+		int size2 = vector_wp2.size();
+		ROS_INFO("wp2 vector size = %i",size2);
+    	for (int i=0;i<size2;i++)
+    	{
+    		circle(frame,vector_wp2[i], 1, path_color2,-1);
+    		//ROS_INFO("wp:%i,%i",vector_wp[i].x,vector_wp[i].y);
+
+		}
+
 
 		if (goal_points.size() > 0 ) 
 		{
@@ -360,6 +362,7 @@ public:
 		}
 
 		circle(frame,Point((int)target_wp.x, (int)target_wp.y), 2, wp_color,2);
+		circle(frame,Point((int)target_wp.x, (int)target_wp.y), 2, wp_color2,2);
 
 		// draw target angle vector
 		Point target_angle_endpoint;
