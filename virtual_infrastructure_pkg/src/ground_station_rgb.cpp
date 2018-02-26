@@ -430,6 +430,7 @@ public:
 
 	void detectObjects(Mat threshold, Mat &frame, string name) { // object detection 
 	  //generate temporary vectors
+		consecutive_tracks = 0;
 		vector< vector<Point> > contours_temp; 
 		vector<Vec4i> hierarchy_temp;          
 		vector <Object> objects_temp; 
@@ -476,7 +477,7 @@ public:
 
 	          objectFound = true;
 
-	          area_total = area;
+	          area_px = area;
 
 	        }
 	        else { 
@@ -535,13 +536,20 @@ public:
 		} else { overlap_state = 0;}
 	}
 
-	void confidence_calc() {
+	void confidenceCalc() {
 		float a = 0.33;
 		float b = 0.33;
 		float c = 0.33;
 	
 		if (local_bool > 0) {
-//			confidence = consecutive_tracks * a + detection_area * b + detection_area * c; 
+			detection_area_conv = detection_area * pow(conv_fac,2) ; //px^2 -> m^2
+			tracking_area_conv = tracking_area * pow(conv_fac,2) ;
+			area_ratio = tracking_area / detection_area;
+
+			detection_res = tracking_area / tracking_area_conv //px/area
+
+			double confidence_temp = consecutive_tracks * a + area_ratio * b + detection_res * c; 
+			cout << confidence_temp << endl;
 			confidence = 1;
 		} else {confidence = 0;}
 
@@ -603,6 +611,10 @@ public:
           	// if distance is in neighborhood, assign xy coordinates
           	if (dist[minPos] < max_dist)  // VEHICLE FOUND 
           	{
+          		
+          		if (consecutive_tracks > 10) {
+          			consecutive_tracks = 0;
+          		} else {consecutive_tracks++;}
 
           		// Set vehicle position
                	x_obj = x_temp;
@@ -644,7 +656,7 @@ public:
           		//}
 
           	} else { // VEHICLE NOT FOUND : object too far away 
-          		
+          		consecutive_tracks = 0;
           		if (projection_state <= 3) { //project vehicle position (or use past position), for up to three frames, then timeout.
 	          		int i=0;
 	          		x_obj = objects.at(i).getXPos(MEMORY_SIZE-1); // retrieve past object position.
@@ -671,6 +683,7 @@ public:
 	        drawObject(objects,frame, contours,hierarchy);
 
 		} else { // no contours found
+			consecutive_tracks = 0;
 			num_objects = 0;
 			// use guess at object travel as opposed to vision, otherwise the position index will remain zero, or last memory cycle value. 
 			for (int j = 0; j<objects.size(); j++) { //for each already existing object.
@@ -699,7 +712,7 @@ public:
 		y = double(y_obj);
 
 		// calc and send confidence
-		confidence_calc();
+		confidenceCalc();
 
 		if (local_bool > 0) { // vehicle_detected or projected, send pose.
 
@@ -1333,8 +1346,12 @@ private:
 	double confidence = 0;
 	int consecutive_tracks = 0;
 	double detection_area = 0;
+	double tracking_area = 0;
+	double detection_area_conv = 0;
+	double tracking_area_conv = 0;
+	double area_ratio = 0;
 	double detection_res = 0;
-	double area_total = 0;
+	double area_px = 0;
 	double conv_fac = 0;
 };
 
