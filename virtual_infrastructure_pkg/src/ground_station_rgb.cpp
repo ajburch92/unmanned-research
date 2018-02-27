@@ -430,7 +430,6 @@ public:
 
 	void detectObjects(Mat threshold, Mat &frame, string name) { // object detection 
 	  //generate temporary vectors
-		consecutive_tracks = 0;
 		vector< vector<Point> > contours_temp; 
 		vector<Vec4i> hierarchy_temp;          
 		vector <Object> objects_temp; 
@@ -476,45 +475,45 @@ public:
 	          objects_temp.push_back(object); 
 
 	          objectFound = true;
-
-	          area_px = area;
-
-	        }
-	        else { 
-	        	objectFound = false; 
-	        }
-			if(objectFound ==true)
-			{
-			    //draw object on frame
-			   drawObject(objects_temp,frame,contours_temp,hierarchy_temp);
+	          if (tracking_status == 0) {
+	        	detection_area = area;
+	      	    cout << "detection_area : " << detection_area << endl;
+	          } else { 
+		        	objectFound = false; 
+		      }
+			  if(objectFound ==true)
+			  {
+				    //draw object on frame
+				   drawObject(objects_temp,frame,contours_temp,hierarchy_temp);
+			  }
 			}
+		    else {
+				putText(frame,"NOISE! ADJUST FILTER",Point(0,50),1,2,Scalar(0,0,255),2); 
+		    }
+		  }
+
+		  //save temporary vectors as current        
+		  if (name=="goal") {
+			objects_blue = objects_temp;
+		  }
+		  else if (name=="green") {
+			objects_green = objects_temp;
+		  }
+		  else if (name=="vehicle") {
+			objects_yellow = objects_temp;
+
+			vehicle_pose = Point((int)x,(int)y);
+		  }
+		  else if (name=="red") {
+			objects_red = objects_temp;
+		  }
+
+		  //pcaOrientation(contours[max_contour_index],frame);
+	      //clear temporary vectors
+		  contours_temp.clear();
+		  hierarchy_temp.clear();
+		  objects_temp.clear();
 		}
-	    else {
-			putText(frame,"NOISE! ADJUST FILTER",Point(0,50),1,2,Scalar(0,0,255),2); 
-	    }
-	  }
-
-	  //save temporary vectors as current        
-	  if (name=="goal") {
-		objects_blue = objects_temp;
-	  }
-	  else if (name=="green") {
-		objects_green = objects_temp;
-	  }
-	  else if (name=="vehicle") {
-		objects_yellow = objects_temp;
-
-		vehicle_pose = Point((int)x,(int)y);
-	  }
-	  else if (name=="red") {
-		objects_red = objects_temp;
-	  }
-
-	  //pcaOrientation(contours[max_contour_index],frame);
-      //clear temporary vectors
-	  contours_temp.clear();
-	  hierarchy_temp.clear();
-	  objects_temp.clear();
 	}
 
 	void overlapState(int x, int y) {
@@ -542,15 +541,22 @@ public:
 		float c = 0.33;
 	
 		if (local_bool > 0) {
+			cout << "consecutive_tracks : " << consecutive_tracks << endl;
+
 			detection_area_conv = detection_area * pow(conv_fac,2) ; //px^2 -> m^2
+			cout << "detection area converted : " <<detection_area_conv << endl;
+
 			tracking_area_conv = tracking_area * pow(conv_fac,2) ;
+			cout << "tracking_area_conv : " <<tracking_area_conv << endl;
+
 			area_ratio = tracking_area / detection_area;
+			cout << "area_ratio : " <<area_ratio << endl;
 
-			detection_res = tracking_area / tracking_area_conv //px/area
+			detection_res = tracking_area / tracking_area_conv; //px/area
+			cout << "detection_res : " <<detection_res << endl;
 
-			double confidence_temp = consecutive_tracks * a + area_ratio * b + detection_res * c; 
-			cout << confidence_temp << endl;
-			confidence = 1;
+			confidence = (consecutive_tracks / 10 * a) + (area_ratio * b) + ((1-(1/detection_res)) * c); 
+			cout << "confidence : " << confidence << endl;
 		} else {confidence = 0;}
 
 		std_msgs::Float64 confidence_msg;
@@ -585,7 +591,8 @@ public:
 			Moments moment = moments((cv::Mat)contours[index]); //moments method
 			double area = moment.m00; //px
 
-
+	        tracking_area = area;
+	        cout << "tracking_area : " << tracking_area << endl;
 
 			//find pose
 			x_temp = (int)moment.m10/area;       
@@ -612,10 +619,11 @@ public:
           	if (dist[minPos] < max_dist)  // VEHICLE FOUND 
           	{
           		
-          		if (consecutive_tracks > 10) {
-          			consecutive_tracks = 0;
-          		} else {consecutive_tracks++;}
-
+          		if (consecutive_tracks >= 10) {
+          			consecutive_tracks = 10;
+          		} else {
+          			consecutive_tracks++;
+          		}
           		// Set vehicle position
                	x_obj = x_temp;
                	y_obj = y_temp;
@@ -664,7 +672,7 @@ public:
 
 			  		objects.at(i).setXPos(x_obj);
 			  		objects.at(i).setYPos(y_obj);
-
+			  		projection_state++;
 		  			local_bool = 1;
 			  		// calc confidence
 		  			//confidence = 0.1;
@@ -694,6 +702,7 @@ public:
 
 					objects.at(i).setXPos(x_obj);
 					objects.at(i).setYPos(y_obj);
+			  		projection_state++;
 
 					local_bool = 1;
 					// calc confidence
@@ -707,7 +716,7 @@ public:
 				}
 			}		  	  
 		}
-		
+
 		x = double(x_obj);
 		y = double(y_obj);
 
@@ -1043,6 +1052,7 @@ public:
 				}
 
 				arm_bool = 0;
+				consecutive_tracks = 0;
 
 			} 
 			else // tracking mode turned on
@@ -1102,7 +1112,7 @@ public:
 			rgb_arm_bool_pub.publish(arm_bool_msg);
 
 			// Output modified video stream
-			if (framedrop_count >= 3) 
+			if (framedrop_count >= 5) 
 		    {
 		    	framedrop_count = 0;
 				img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, frameoutDown);
