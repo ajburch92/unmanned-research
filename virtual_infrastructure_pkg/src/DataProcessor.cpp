@@ -361,8 +361,8 @@ public:
 
 		}
 
-		circle(frame,Point((int)target_wp.x, (int)target_wp.y), 2, wp_color,2);
-		circle(frame,Point((int)target_wp.x, (int)target_wp.y), 2, wp_color2,2);
+		circle(frame,Point((int)target_wp.x, (int)target_wp.y), 2, wp_color,1);
+		circle(frame,Point((int)target_wp2.x, (int)target_wp2.y), 2, wp_color2,-1);
 
 		// draw target angle vector
 		Point target_angle_endpoint;

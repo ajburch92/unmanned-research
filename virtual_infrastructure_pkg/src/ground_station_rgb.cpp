@@ -62,8 +62,8 @@ public:
 
 		nh_rgbp.param("ID_num",ID_num,0);
 		//ID_num = 1;
-		checkerboard_height = 0.3 ; // meters; or get square size, and multiply 
-		checkerboard_width = 0.55 ; // meters
+		checkerboard_height = 0.3175 ; // meters; or get square size, and multiply -> checkerboard boarder - 1 (5x7 squares)
+		checkerboard_width = 0.4445 ; // meters
 
 
 		stringstream ss;
@@ -737,13 +737,17 @@ public:
 				vehicle_pose_msg.y = y;
 				
 				double recent_dist_travel = polyOrientation(frame);
-				if (recent_dist_travel < 10) 
+/*				if (recent_dist_travel < 2) 
 				{
 				} else { vehicle_orientation_angle = poly_vehicle_orientation_angle;
 					pcaOrientation(contours[max_contour_index],frame);
 					headingFilter();
-				}
-		
+				}*/
+				if (recent_dist_travel < 10) {
+					pcaOrientation(contours[max_contour_index],frame);
+					headingFilter();
+
+				} else {vehicle_orientation_angle = poly_vehicle_orientation_angle;}
 				vehicle_pose_msg.theta = vehicle_orientation_angle;
 				prev_vehicle_orientation_angle = vehicle_orientation_angle;
 				

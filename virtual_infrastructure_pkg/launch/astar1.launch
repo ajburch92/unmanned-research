@@ -1,0 +1,9 @@
+<launch>  
+      <node pkg="virtual_infrastructure_pkg"
+            type="astar_planner"
+            name="astar_planner1">
+            <param name="ID_num" value="1" />
+
+      </node>
+</launch>
+

@@ -222,14 +222,20 @@ public:
 					if (confidence1 >= confidence2) {
 						selector_state = 1;
 					} else { //confidence2 > confidence1
-						selector_state = 2;
+						// make sure confidences arent saturated, no need to switch
+						// only switch when current confidence drops below 1, and is less than confidence 2
+						if (confidence1 >= 1.00) {
+							selector_state = 1; // keep 1 
+						} else {selector_state = 2;}
 					} 					
 					break;
 				case 2: // last selection was GS2
 					if (confidence1 > confidence2) {
 						selector_state = 1;
 					} else { //confidence2 >= confidence1
-						selector_state = 2;
+						if (confidence2 >= 1.00) {
+							selector_state = 2; // keep 2 selected 
+						} else {selector_state = 1;}
 					} 
 					break;
 				default : //(0) give GS1 priority
