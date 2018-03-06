@@ -101,7 +101,12 @@ public:
 	sub_vehicle2 = nh.subscribe("/vehicle_pose2",1, &DataProcessor::vehicle2Callback, this);
 	sub_target_angle2 = nh.subscribe("/target_angle2",1, &DataProcessor::targetAngle2Callback,this);
 	sub_vector_wp2 = nh.subscribe("/wp_pose2",1, &DataProcessor::vectorwp2Callback,this);
-	sub_target_wp2 = nh.subscribe("/target_wp2",5, &DataProcessor::targetwp2Callback,this);
+	sub_target_wp2 = nh.subscribe("/target_wp2",1, &DataProcessor::targetwp2Callback,this);
+	sub_conf1 = nh.subscribe("/confidence1",1,&DataProcessor::confidence1Callback,this);
+	sub_conf2 = nh.subscribe("/confidence2",1,&DataProcessor::confidence2Callback,this);
+	sub_selectorState1 = nh.subscribe("/selector_state1",1,&DataProcessor::selectorState1Calllback,this);
+	sub_selectorState2 = nh.subscribe("/selector_state2",1,&DataProcessor::selectorState2Calllback,this);
+
 
 /*
 	sub_rgb2 = it_nh.subscribe("/ground_station_rgb2",5, &DataProcessor::rgbFeed2Callback, this); 
@@ -164,6 +169,34 @@ public:
 	void upsampleFrame(Mat &img) {
 		Size size(img.cols * 2 , img.rows * 2); // this should be 160 x 120 
 		resize(img,img,size);
+	}
+
+
+	void confidence1Callback (const std_msgs::Float64::ConstPtr& confidence1_msg) 
+	{
+		confidence1 = confidence1_msg -> data;
+	    ROS_INFO("confidence1: ( %f )",confidence1);
+	}
+
+
+	void confidence2Callback (const std_msgs::Float64::ConstPtr& confidence2_msg) 
+	{
+		confidence2 = confidence2_msg -> data;
+	    ROS_INFO("confidence2: ( %f )",confidence2);
+	}
+
+
+	void selectorState1Calllback (const std_msgs::Int8::ConstPtr& selector_state_msg) 
+	{
+		selector_state1 = selector_state_msg -> data;
+	    ROS_INFO("selector_state1: ( %i )",selector_state1);
+	}
+
+
+	void selectorState2Calllback (const std_msgs::Int8::ConstPtr& selector_state_msg) 
+	{
+		selector_state2 = selector_state_msg -> data;
+	    ROS_INFO("selector_state2: ( %i )",selector_state2);
 	}
 
 
@@ -321,17 +354,26 @@ public:
 
 		Scalar goal_color = Scalar(255,0,0);
 
-		circle(frame,vehicle_pose,LOS_RADIUS, Scalar(255,0,0));
-
 	    vehicle_heading.x = (int) round(vehicle_pose.x + LOS_RADIUS * cos(heading_angle));
 	    vehicle_heading.y = (int) round(vehicle_pose.y + LOS_RADIUS * sin(heading_angle));		    
 	    line(frame, vehicle_pose, vehicle_heading, Scalar(255, 50, 0), HEADING_LINE_THICKNESS, 8, 0);
 
-	    circle(frame,vehicle_pose2,LOS_RADIUS-1, Scalar(0, 0, 255));
+
 
 	    vehicle_heading2.x = (int) round(vehicle_pose2.x + LOS_RADIUS * cos(heading_angle));
 	    vehicle_heading2.y = (int) round(vehicle_pose2.y + LOS_RADIUS * sin(heading_angle));		    
 	    line(frame, vehicle_pose2, vehicle_heading2, Scalar(0, 50, 255), HEADING_LINE_THICKNESS, 8, 0);
+		
+	    if (selector_state1 == 1 && selector_state2 == 1) {
+		    circle(frame,vehicle_pose,LOS_RADIUS, Scalar(255,0,0),2);	
+		    circle(frame,vehicle_pose2,LOS_RADIUS-1, Scalar(0, 0, 255),1);
+	    } else if (selector_state1 == 2 && selector_state2 == 2) {
+			circle(frame,vehicle_pose,LOS_RADIUS, Scalar(255,0,0),1);
+		    circle(frame,vehicle_pose2,LOS_RADIUS-1, Scalar(0, 0, 255),2);
+	    } else {
+			circle(frame,vehicle_pose,LOS_RADIUS, Scalar(255,0,0),1);
+		    circle(frame,vehicle_pose2,LOS_RADIUS-1, Scalar(0, 0, 255),1);
+	    }
 		
 		int size = vector_wp.size();
 		ROS_INFO("wp vector size = %i",size);
@@ -392,6 +434,28 @@ public:
 		circle(frame,vehicle_pose,2, Scalar(255, 0, 0),1);
 		circle(frame,vehicle_pose2,2, Scalar(0, 0, 255),1);
 
+		putText(frame,"--- MSSP1 ---",Point(5,15),1,1,Scalar(0,0,255),1); 
+
+		putText(frame,"--- MSSP2 ---",Point(250,15),1,1,Scalar(255,0,0),1); 
+
+		char confidence1txt[25];
+		sprintf(confidence1txt,"confidence1 : %f",confidence1);
+		putText(frame,confidence1txt,Point(5,40),1,1,Scalar(0,0,255),1); 
+		char confidence2txt[25];
+		sprintf(confidence2txt,"confidence2 : %f",confidence2);
+		putText(frame,confidence2txt,Point(250,40),1,1,Scalar(255,0,0),1); 
+		char selectorState1txt[25];
+		sprintf(selectorState1txt,"selector_state1 : %i",selector_state1);		
+		putText(frame,selectorState1txt,Point(5,65),1,1,Scalar(0,0,255),1); 
+		char selectorState2txt[25];
+		sprintf(selectorState2txt,"selector_state2 : %i",selector_state2);		
+		putText(frame,selectorState2txt,Point(250,65),1,1,Scalar(255,0,0),1); 
+		char vehicle_pose1txt[25];
+		sprintf(vehicle_pose1txt,"vehicle_pose1 : (%i , %i)",vehicle_pose.x,vehicle_pose.y);		
+		putText(frame,vehicle_pose1txt,Point(5,90),1,1,Scalar(0,0,255),1); 
+		char vehicle_pose2txt[25];
+		sprintf(vehicle_pose2txt,"vehicle_pose2 : (%i , %i)",vehicle_pose2.x,vehicle_pose2.y);		
+		putText(frame,vehicle_pose2txt,Point(250,90),1,1,Scalar(255,0,0),1);
 	}
 
 	void getPerspectives() {
@@ -888,6 +952,10 @@ private:
 	ros::Subscriber sub_vehicle2;
 	ros::Subscriber sub_corners2;
 	ros::Subscriber sub_corners1;
+	ros::Subscriber sub_conf1;
+	ros::Subscriber sub_conf2;
+	ros::Subscriber sub_selectorState1;
+	ros::Subscriber sub_selectorState2;
 
 
 	double target_angle = 0;
@@ -926,6 +994,11 @@ private:
 	int board_h = 60;
 	Mat H_camcam;
 	Mat H_cambird;
+
+	int selector_state1 = 0;
+	int selector_state2 = 0;
+	double confidence1 = 0;
+	double confidence2 = 0;
 
 };
 

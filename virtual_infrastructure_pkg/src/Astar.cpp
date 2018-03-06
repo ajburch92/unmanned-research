@@ -32,20 +32,21 @@ using namespace cv;
 //m and n should start as camera resolution size
 int scale_factor = 8; // change this to a launch file paramerter. this is the downsampling applied to the occupancy grid.
 //res initially 1288x964 then resize to 1280x960, reduced to 160x120 (8x)
-const int n=160*3;//160; // horizontal size of the grid  CAN I CHECK CONFIG FILE FOR THIS VALUE
+const int n=120*3;//160; // horizontal size of the grid  CAN I CHECK CONFIG FILE FOR THIS VALUE
 const int m=120*3;//120; // vertical size size of the grid
 static int grid[n][m];
 static int closed_nodes_grid[n][m]; // grid of closed (tried-out) nodes
 static int open_nodes_grid[n][m]; // grid of open (not-yet-tried) nodes
 static int dir_grid[n][m]; // grid of directions
-const int dir=8; // number of possible directions to go at any position
 int counter=0;
 // if dir==4
 //static int dx[dir]={1, 0, -1, 0};
 //static int dy[dir]={0, 1, 0, -1};
 // if dir==8
+const int dir=8; // number of possible directions to go at any position
 static int dx[dir]={1, 1, 0, -1, -1, -1, 0, 1};
 static int dy[dir]={0, 1, 1, 1, 0, -1, -1, -1};
+
 const string astarwindowName = "Astar planner";
 image_transport::Publisher path_pub;
 ros::Publisher wp_pub;
@@ -89,6 +90,10 @@ Mat H_cambird;
 Mat gridRemoteResized;
 Mat worldMap, MapLocal, MapRemote, worldMapPrev;
 int worldMap_tic = 0;
+
+int x_prev=xA;
+int y_prev=yA;
+
 class node
 {
     // current position
@@ -362,7 +367,7 @@ void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg)
 
                 vehicle_pose_temp=Point(x/w,y/w);
 
-
+                
     } else { // ID_num = 1 , HbirdOG
 
                 vehicle_pose_temp=Point(xtemp,ytemp);
@@ -371,6 +376,14 @@ void vehicleCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg)
 
     xA  = (int)vehicle_pose_temp.x;
     yA = (int)vehicle_pose_temp.y;
+
+    if (xA > 480) {
+        xA = 480;
+    }
+    if (yA > 360) {
+        yA = 360;
+    }
+
     ROS_INFO("vehicleCallback (xA, yA): ( %i , %i )",xA,yA);
 }
 
@@ -463,22 +476,18 @@ void updateMap(Mat &temp, bool local) {
         temp.copyTo(MapLocal(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
 
         if (ID_num != 1) { // transform
-            cout<< "check1" << endl;
             double scale = getAffineScale(corners1_vec, corners2_vec);
             affineImg(corners1_vec, corners2_vec,scale, MapLocal);
         }
-    cout<< "check2" << endl;
         
     } else { //remote
 
         MapRemote.setTo(Scalar(0));
         temp.copyTo(MapRemote(Rect(temp.cols,temp.rows,temp.cols,temp.rows)));
         if (ID_num != 1) { // transform
-            cout<< "check3" << endl;
             double scale = getAffineScale(corners1_vec, corners2_vec);
             affineImg(corners1_vec, corners2_vec,scale, MapRemote);
         }
-        cout<< "check4" << endl;
     }
 
     if (worldMap_tic >= 2) {
@@ -528,35 +537,56 @@ void updateMap(Mat &temp, bool local) {
 
         // follow the route on the grid and display it 
         int j; char c;
-        int x=xA;
-        int y=yA;
-        int x_prev;
-        int y_prev;
+        int xwp=xA;
+        int ywp=yA;
         if(route.length()>0)
         {
 
-            grid[x][y]=2;
+            grid[xwp][ywp]=2;
+            cout<< "check1" << endl;
+
             for(int i=0;i<route.length();i++)
             {
                 c =route.at(i);
+
                 j=atoi(&c); 
-                x=x+dx[j];
-                y=y+dy[j];
-                grid[x][y]=3;
+                cout<< "c = " << c << endl;
+
+                xwp=xwp+dx[j];
+                cout<< "xwp = " << xwp << endl;
+
+                ywp=ywp+dy[j];
+                cout<< "ywp = " << ywp << endl;
+
+                if (xwp >= 480) {
+                    xwp=x_prev;
+                    cout<< "xwp = " << xwp << endl;
+                }
+                if (ywp >= 360) {
+                    ywp=y_prev;
+                    cout<< "ywp = " << ywp << endl;
+                }
+
+                x_prev = xwp;
+                    cout<< "x_prev = " << x_prev << endl;
+
+                y_prev = ywp;
+                    cout<< "y_prev = " << y_prev << endl;
+
+                grid[xwp][ywp]=3;
 
                 // fill wp vector
-                wp_pose_msg.position.x = double(x);
-                wp_pose_msg.position.y = double(y); // change to doubles
+                wp_pose_msg.position.x = double(xwp);
+                wp_pose_msg.position.y = double(ywp); // change to doubles
                 poseArray.poses.push_back(wp_pose_msg); 
 
                 // pushback if so many steps have passed? 
                 //could hard code coarser path here, otherwise look at resolution factor tree, or crop/resize
 
-                x_prev = x;
-                y_prev = y;
+
             }
-            grid[x][y]=4;
-        cout<< "check8" << endl;
+            grid[xwp][ywp]=4;
+            cout<< "check2" << endl;
 
             // display the grid with the route
             //write to output image topic
@@ -592,7 +622,8 @@ void updateMap(Mat &temp, bool local) {
                 //cout<<endl;
                 }
             }
-        } else { // just transfer objects 
+        } else { // just transfer objects
+ 
             for(int y=0;y<m;y++)
             {
                 for(int x=0;x<n;x++)
@@ -605,7 +636,6 @@ void updateMap(Mat &temp, bool local) {
                 }
             }
         }
-        cout<< "check5" << endl;
 
         ROS_INFO("poseArray published");
         wp_pub.publish(poseArray); 
@@ -613,14 +643,12 @@ void updateMap(Mat &temp, bool local) {
         occupancy_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, occupancyGridworld);
         occupancy_bridge.toImageMsg(occupancyGrid_msg);
         path_pub.publish(occupancyGrid_msg);
-        cout<< "check6" << endl;
 
         //empty map
         for(int y=0;y<m;y++)
         {
             for(int x=0;x<n;x++) grid[x][y]=0;
         }
-        cout<< "check7" << endl;
 
     }
 }

@@ -243,7 +243,7 @@ public:
 		//draw objects
 		Scalar white = Scalar(255,255,255);
 		if (contours.size() > 0) {
-			drawContours(frame,contours,-1,white,2,8,hierarchy);
+			drawContours(frame,contours,-1,white,3,8,hierarchy);
 		}
 
 
@@ -251,7 +251,7 @@ public:
 	  	{ //for each object
 	    //draw current position
 			try {
-				drawContours(frame,contours,i,theObjects.at(i).getColor(),2,8,hierarchy);
+				drawContours(frame,contours,i,theObjects.at(i).getColor(),3,8,hierarchy);
 			} catch (Exception& e) {}
 	  		putText(frame,intToString(theObjects.at(i).getXPos(MEMORY_SIZE-1))+ " , " + intToString(theObjects.at(i).getYPos(MEMORY_SIZE-1)),cv::Point(theObjects.at(i).getXPos(MEMORY_SIZE-1),theObjects.at(i).getYPos(MEMORY_SIZE-1)+20),1,1,Scalar(0,255,0));
 	  		putText(frame,theObjects.at(i).getType() + ": " + intToString(i+1),Point(theObjects.at(i).getXPos(MEMORY_SIZE-1),theObjects.at(i).getYPos(MEMORY_SIZE-1)-20),1,1.5,theObjects.at(i).getColor(),2);
@@ -1048,7 +1048,7 @@ public:
 				//detectObjects(GREENthreshold,objectFeed,"green");
 				detectObjects(YELLOWthreshold,objectFeed,"vehicle");
 				//detectObjects(REDthreshold,objectFeed,"red");
-				putText(objectFeed,"DISARMED : DETECTING VEHICLE",Point(0,50),1,1.5,Scalar(0,255,0),2); 
+				putText(objectFeed,"o",Point(0,50),1,5,Scalar(0,0,255),4); 
 
 				// Set each element in history to 0
 				for (int i = 0; i < VEHICLE_POSE_HISTORY_SIZE; i++) {
@@ -1072,7 +1072,7 @@ public:
 				//trackObjects(GREENthreshold,objectFeed,objects_green,"green");
 				trackObjects(YELLOWthreshold,objectFeed,objects_yellow,"vehicle");
 				//trackObjects(REDthreshold,objectFeed,objects_red,"red");
-				putText(objectFeed,"ARMED : TRACKING VEHICLE",Point(0,50),1,1.5,Scalar(0,0,255),2); 
+				putText(objectFeed,"o",Point(0,50),1,5,Scalar(0,255,0),3); 
 
 				arm_bool = 1;
 

@@ -180,6 +180,7 @@ public:
 		}
 
 	}
+	
 	void positionCallback (const geometry_msgs::Pose2D::ConstPtr& vehicle_pose_msg) 
 	{
 		current_time = ros::Time::now();
